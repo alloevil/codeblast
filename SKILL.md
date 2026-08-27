@@ -28,9 +28,14 @@ bun run <codeblast>/src/cli.ts <repo-root> --db /tmp/graph.db
 ```bash
 bun run <codeblast>/src/impact-cli.ts /tmp/graph.db "<符号名或文件路径>" --json
 ```
+目标可传：符号名（重名时列出候选并退出,从候选复制完整 id 重查）、
+完整 id（`路径#符号` 或 `路径#类.方法`）、或文件相对路径。
+`--json` 输出可能很大（数百 item），建议重定向或管道给 jq。
 
 返回 `items[]`：每项含 `level`（direct=直接调用方 / indirect=传递可达 / tests=受影响测试）、
 `hops`、`confidence`（exact / conservative）、`via_file:via_line`（依赖发生的证据行）。
+`tests` 级按测试路径惯例判定（`*.test.*`/`*.spec.*`/`tests/` 目录/`test_*.py`），
+测试目录下的 fixture 也会被保守计入——按去重后的文件数估算测试成本。
 
 **Agent 用法**：改一个导出符号前先查 impact，把 direct 列表作为必须检查的
 callsite 清单，把 tests 列表作为改完必须跑的测试集。`truncated=true` 表示

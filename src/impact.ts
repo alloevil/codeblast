@@ -92,6 +92,7 @@ export function impact(db: Database, targetId: string, maxNodes = 500): ImpactRe
   for (const [id, info] of visited) {
     const n = getNode.get(id) as { id: string; name: string; kind: string; file: string; line: number } | null;
     if (!n) continue; // 悬空边目标（保守全连生成的 id 可能无节点）：跳过但不计入漏报——它本身就是保守猜测
+    if (n.kind === "file" && n.file === targetRow.file) continue; // 目标自身所在文件：对 callsite 清单是噪音
     const level = n.kind === "test" || TEST_FILE_RE.test(n.file) ? "tests" : info.hops === 1 ? "direct" : "indirect";
     if (level === "tests") affectedTests.add(id);
     items.push({
