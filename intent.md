@@ -60,7 +60,12 @@ L4 出口   人:    PR bot（GitHub App 评论 ②+③ 摘要；无结构变化�
 
 - 跨服务/跨仓库边（图模型预留节点类型，边不填）
 - 图编辑器 / 协作画布（不与 CodeViz 拼画布交互）
-- Java / Python（TS 之后再议）
+- Java（TS 之后再议）
+- Python 函数级 Impact（方案 B，2026-08-27 拍板）：Python 只建高置信边
+  （import/类与函数定义/直接调用），支撑 Architecture Map 与文件级 Change Map；
+  Impact 对 Python 明确标注"仅文件级"。函数级零漏报承诺仍为 TS 独有——
+  鸭子类型/动态派发使 Python 上该承诺原理性不成立（sgp 实例：
+  hasattr(solver,"solve") 派发,静态不可达）。
 - 通用代码检索 MCP（不与 Augment 拼 context engine）
 - 代码健康评分（CodeScene 地盘）
 - 自研索引器（scip-typescript 不顺手则 wrap 或提 PR，fork 是最后手段，重写禁止）

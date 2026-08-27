@@ -51,7 +51,7 @@ if (target.endsWith(".json")) {
 }
 if (tsconfigs.length === 0) {
   console.error(`no tsconfig.json found under: ${target}`);
-  process.exit(1);
+  console.error("proceeding: python-only ingestion");
 }
 console.error(`repo root: ${repoRoot}`);
 console.error(`tsconfigs: ${tsconfigs.length}`);
@@ -132,9 +132,32 @@ function sweep(dir: string): void {
   }
 }
 sweep(repoRoot);
-if (orphans.length > 0) {
+if (tsconfigs.length > 0 && orphans.length > 0) {
   console.error(`orphan files (outside all tsconfigs): ${orphans.length}`);
   indexProgram(Extractor.forFiles(orphans, tsconfigs[0], repoRoot));
+}
+// Python 摄取（方案 B：高置信边 only，Impact 仅文件级）
+const pyProbe = Bun.spawnSync(["python3", path.join(import.meta.dir, "py_extract.py"), repoRoot]);
+if (pyProbe.exitCode === 0) {
+  const payload = JSON.parse(pyProbe.stdout.toString()) as {
+    files: { path: string; hash: string; nodes: NodeRow[]; edges: EdgeRow[]; blind_spots: BlindSpotRow[] }[];
+  };
+  for (const f of payload.files) {
+    if (seenFiles.has(f.path)) continue;
+    seenFiles.add(f.path);
+    const existing = getHash.get(f.path) as { hash: string } | null;
+    if (existing?.hash === f.hash && f.hash !== "") {
+      skipped++;
+      continue;
+    }
+    writeBatch(f.path, f.hash, f.nodes, f.edges, f.blind_spots);
+    indexed++;
+    nodeCount += f.nodes.length;
+    edgeCount += f.edges.length;
+    blindCount += f.blind_spots.length;
+  }
+  const pyFiles = payload.files.length;
+  if (pyFiles > 0) console.error(`python files ingested: ${pyFiles}`);
 }
 
 const dt = ((performance.now() - t0) / 1000).toFixed(1);

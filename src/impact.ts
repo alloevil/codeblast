@@ -36,7 +36,7 @@ export interface ImpactResult {
 }
 
 const IMPACT_EDGE_KINDS = ["calls", "implements", "extends", "imports", "contains"] as const;
-const TEST_FILE_RE = /\.(test|spec)\.[cm]?[jt]sx?$|__tests__\//;
+const TEST_FILE_RE = /\.(test|spec)\.[cm]?[jt]sx?$|__tests__\/|(^|\/)tests?\/|(^|\/)test_[^/]*\.py$|_test\.py$|conftest\.py$/;
 
 export function impact(db: Database, targetId: string, maxNodes = 500): ImpactResult {
   const targetRow = db.prepare("SELECT id, file FROM nodes WHERE id = ?").get(targetId) as
