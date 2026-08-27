@@ -1,0 +1,56 @@
+/**
+ * CLI: bun run src/impact-cli.ts <graph.db> <node-id-or-name> [--max 500]
+ * name 匹配多个节点时列出候选退出。
+ */
+import { Database } from "bun:sqlite";
+import { impact } from "./impact";
+
+const [dbPath, query] = process.argv.slice(2);
+if (!dbPath || !query) {
+  console.error("usage: bun run src/impact-cli.ts <graph.db> <node-id-or-name> [--max 500]");
+  process.exit(1);
+}
+const maxFlag = process.argv.indexOf("--max");
+const maxNodes = maxFlag >= 0 ? Number(process.argv[maxFlag + 1]) : 500;
+
+const db = new Database(dbPath, { readonly: true });
+
+let targetId = query;
+const exact = db.prepare("SELECT id FROM nodes WHERE id = ?").get(query);
+if (!exact) {
+  const candidates = db.prepare(
+    "SELECT id, kind, file, line FROM nodes WHERE name = ? AND kind != 'file' LIMIT 20",
+  ).all(query) as { id: string; kind: string; file: string; line: number }[];
+  if (candidates.length === 0) {
+    console.error(`no node matches: ${query}`);
+    process.exit(1);
+  }
+  if (candidates.length > 1) {
+    console.error(`ambiguous name, ${candidates.length} candidates:`);
+    for (const c of candidates) console.error(`  ${c.id}  (${c.kind} @ ${c.file}:${c.line})`);
+    process.exit(1);
+  }
+  targetId = candidates[0].id;
+}
+
+const t0 = performance.now();
+const result = impact(db, targetId, maxNodes);
+const ms = (performance.now() - t0).toFixed(0);
+if (process.argv.includes("--json")) {
+  console.log(JSON.stringify(result));
+  process.exit(0);
+}
+
+const byLevel = { direct: 0, indirect: 0, tests: 0 };
+for (const it of result.items) byLevel[it.level]++;
+
+console.log(`target: ${result.target}`);
+console.log(`impact: ${result.items.length} nodes (direct=${byLevel.direct} indirect=${byLevel.indirect} tests=${byLevel.tests})${result.truncated ? " [TRUNCATED — 广泛影响，建议全量测试]" : ""}`);
+if (result.blind_spot_count > 0) console.log(`blind spots in target file: ${result.blind_spot_count} (影响可能被低估)`);
+console.log(`query: ${ms}ms\n`);
+
+for (const it of result.items.slice(0, 40)) {
+  const conf = it.confidence === "conservative" ? " ~" : "";
+  console.log(`  [${it.level}${conf}] ${it.id}  (${it.kind}, ${it.hops} hop, via ${it.via_file}:${it.via_line})`);
+}
+if (result.items.length > 40) console.log(`  ... and ${result.items.length - 40} more`);
