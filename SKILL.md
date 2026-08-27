@@ -1,0 +1,74 @@
+---
+name: codeblast
+description: Deterministic code-graph analysis for TypeScript and Python repositories. Use when the user asks what breaks if I change this, wants an impact analysis or blast radius before editing a symbol, asks for a repository architecture map grounded in real code, or wants to know what structurally changed between two git refs or in a PR. Unlike LLM-drawn diagrams, every node and edge is extracted by compiler-grade static analysis and carries file:line evidence; impact answers are conservative (no false negatives within the static analysis boundary; dynamic blind spots are explicitly reported, never silently dropped).
+---
+
+# codeblast — 图谱 · 影响 · 结构变更
+
+三个确定性查询，全部基于编译器级静态分析（TS：tsc API；Python：AST，文件级），
+每条结论带 file:line 证据。**不是** LLM 画图工具：图的内容来自代码事实，不来自模型理解。
+
+## 前置
+
+- 运行时：bun ≥1.0，python3（分析 Python 仓库时）
+- 目标仓库依赖已安装（node_modules 缺失会让外部调用沦为盲区）
+
+## 1. 建图（其余命令的前提）
+
+```bash
+bun run <codeblast>/src/cli.ts <repo-root> --db /tmp/graph.db
+```
+
+- TS monorepo 自动发现 packages/apps/libs 各包 tsconfig；Python 自动 AST 摄取
+- 增量：重跑只处理 hash 变化的文件
+- 输出 JSON 统计：files_indexed / nodes / edges / blind_spots
+
+## 2. Impact —— 改这个会影响什么（改代码前必查）
+
+```bash
+bun run <codeblast>/src/impact-cli.ts /tmp/graph.db "<符号名或文件路径>" --json
+```
+
+返回 `items[]`：每项含 `level`（direct=直接调用方 / indirect=传递可达 / tests=受影响测试）、
+`hops`、`confidence`（exact / conservative）、`via_file:via_line`（依赖发生的证据行）。
+
+**Agent 用法**：改一个导出符号前先查 impact，把 direct 列表作为必须检查的
+callsite 清单，把 tests 列表作为改完必须跑的测试集。`truncated=true` 表示
+影响过广，建议全量测试。`blind_spot_count>0` 表示该文件有动态调用，清单可能不全。
+
+**语义边界**：TS 为函数级；Python 为文件级（动态类型限制,已如实降级）。
+conservative 边可能误报（接口全连所有实现），但静态可分析范围内不漏报。
+
+## 3. Change Map —— 两个 ref 之间结构变了什么（review PR / 验收 agent 改动）
+
+```bash
+bun run <codeblast>/src/change-cli.ts <repo-root> <ref-a> <ref-b> --json
+```
+
+返回：`nodes_added/removed`、`renamed`（重命名匹配,不算增删）、
+`edges_added/removed`（新增/删除的调用与 import 依赖）、`modules`（模块级聚合）、
+`impact[]`（每个新增符号的影响半径）。`structural_changes: 0` = 纯实现细节改动，无结构变化。
+
+**Agent 用法**：agent 完成一次多文件修改后，用 HEAD~1..HEAD 自查——
+`edges_added` 里出现意料之外的依赖 = 改动越界的信号；
+声称"只是重构"但 `nodes_removed` 非空 = 丢了东西。
+
+## 4. Architecture Map —— 仓库结构总览
+
+```bash
+bun run <codeblast>/src/archmap.ts /tmp/graph.db            # Mermaid（贴 PR/文档）
+bun run <codeblast>/src/archmap-html.ts /tmp/graph.db --out arch.html --repo-url <github-blob-url>  # 交互 HTML
+```
+
+模块折叠图 + 循环依赖检测（红色虚线）+ 每模块盲区计数。
+HTML 版支持模块→文件→符号三层下钻，符号点击跳 GitHub 源码行。
+可选 `--overlay codeblast.overlay.json`：模块人话名/隐藏/归并（进 git，用户改过的名字不被覆盖）。
+
+## 解读纪律（必须遵守）
+
+1. 引用结论时带证据：impact 项的 `via_file:via_line` 是依赖发生的真实位置，可直接打开核对。
+2. 盲区（blind_spots）= 静态分析原理性接不住的动态调用（eval/getattr/子进程/动态 import）。
+   报告影响时如实转述"影响可能被低估"，禁止假装清单完整。
+3. Python 仓库禁止宣称函数级精度——它是文件级的。
+4. 不要用本工具做"架构美图"——它输出事实,不输出演示品；要精美演示图用 archify 一类渲染工具，
+   但可以把本工具的 JSON 输出作为其事实输入。

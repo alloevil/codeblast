@@ -15,6 +15,7 @@ import { impact } from "./impact";
 const args = process.argv.slice(2);
 const outFlag = args.indexOf("--out");
 const outPath = outFlag >= 0 ? args[outFlag + 1] : undefined;
+const jsonMode = args.includes("--json");
 
 async function buildGraphAt(repo: string, ref: string, db: string): Promise<void> {
   const wt = `/tmp/codeblast-wt-${ref.replace(/[^\w]/g, "_")}`;
@@ -58,11 +59,16 @@ const diff = graphDiff(dbA, dbB);
 const total = diff.nodesAdded.length + diff.nodesRemoved.length + diff.renamed.length + diff.edgesAdded.length + diff.edgesRemoved.length;
 
 if (total === 0) {
+  if (jsonMode) {
+    console.log(JSON.stringify({ range: header, structural_changes: 0 }));
+    process.exit(0);
+  }
   console.log("无结构变化。");
   process.exit(0);
 }
 
 // 变更符号的影响半径（新图上查;removed 节点在旧图上查）
+const impactDetails: { symbol: string; kind: string; impact_nodes: number; affected_tests: number; truncated: boolean }[] = [];
 const impactSummary: string[] = [];
 const topChanged = [...diff.nodesAdded, ...diff.renamed.map((r) => ({ id: `${r.file}#${r.to}`, kind: r.kind, name: r.to, file: r.file, line: 0 }))].slice(0, 10);
 for (const n of topChanged) {
@@ -70,10 +76,25 @@ for (const n of topChanged) {
     const r = impact(dbB, n.id, 2000);
     const tests = r.items.filter((i) => i.level === "tests").length;
     impactSummary.push(`| ${n.name} | ${n.kind} | ${r.items.length}${r.truncated ? "+" : ""} | ${tests} |`);
+    impactDetails.push({ symbol: n.name, kind: n.kind, impact_nodes: r.items.length, affected_tests: tests, truncated: r.truncated });
   } catch { /* 节点可能不在图（模块级 id）——跳过 */ }
 }
 
 const folded = foldToModules(diff);
+if (jsonMode) {
+  console.log(JSON.stringify({
+    range: header,
+    structural_changes: total,
+    modules: Object.fromEntries(folded),
+    nodes_added: diff.nodesAdded,
+    nodes_removed: diff.nodesRemoved,
+    renamed: diff.renamed,
+    edges_added: diff.edgesAdded,
+    edges_removed: diff.edgesRemoved,
+    impact: impactDetails,
+  }));
+  process.exit(0);
+}
 const lines: string[] = [
   `# Change Map`,
   ``,
