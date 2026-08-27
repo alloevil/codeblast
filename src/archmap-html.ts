@@ -11,16 +11,22 @@
  * 用法: bun run src/archmap-html.ts <graph.db> --out arch.html
  */
 import { Database } from "bun:sqlite";
+import { loadOverlay, applyOverlay } from "./overlay";
 
 const [dbPath] = process.argv.slice(2);
 const outFlag = process.argv.indexOf("--out");
 const outPath = outFlag >= 0 ? process.argv[outFlag + 1] : "arch.html";
+const overlayFlag = process.argv.indexOf("--overlay");
+const overlayPath = overlayFlag >= 0 ? process.argv[overlayFlag + 1] : undefined;
+const repoFlag = process.argv.indexOf("--repo-url");
+const repoUrl = repoFlag >= 0 ? process.argv[repoFlag + 1] : undefined; // e.g. https://github.com/o/r/blob/main
 if (!dbPath) {
   console.error("usage: bun run src/archmap-html.ts <graph.db> --out arch.html");
   process.exit(1);
 }
 
 const db = new Database(dbPath, { readonly: true });
+const overlay = overlayPath ? await loadOverlay(overlayPath) : { modules: {} };
 const TEST_RE = /\.(test|spec)\.[cm]?[jt]sx?$|__tests__\/|(^|\/)tests?\/|(^|\/)test_[^/]*\.py$|_test\.py$|conftest\.py$/;
 const moduleOf = (file: string): string => {
   if (TEST_RE.test(file)) return "tests";
@@ -46,7 +52,7 @@ for (const s of symRows) {
   symsByFile.set(s.file, list);
 }
 
-const fileInfos: FileInfo[] = files.map((f) => ({
+let fileInfos: FileInfo[] = files.map((f) => ({
   path: f.file,
   module: moduleOf(f.file),
   blind: blindMap.get(f.file) ?? 0,
@@ -57,6 +63,12 @@ const importRows = db.prepare("SELECT src, dst, line FROM edges WHERE kind = 'im
   { src: string; dst: string; line: number }[];
 
 // 模块聚合
+const rawModuleNames = [...new Set(fileInfos.map((f) => f.module))];
+const ovMap = applyOverlay(rawModuleNames, overlay);
+const effModule = (m: string): string => ovMap.get(m)?.effective ?? m;
+for (const fi of fileInfos) fi.module = effModule(fi.module);
+const hiddenModules = new Set([...ovMap.values()].filter((v) => v.hidden).map((v) => v.effective));
+fileInfos = fileInfos.filter((f) => !hiddenModules.has(f.module));
 const modules = new Map<string, { files: number; blind: number }>();
 for (const fi of fileInfos) {
   const m = modules.get(fi.module) ?? { files: 0, blind: 0 };
@@ -82,7 +94,14 @@ for (const key of modEdges.keys()) {
 
 const data = {
   generated: new Date().toISOString().slice(0, 16).replace("T", " "),
+  repoUrl: repoUrl ?? null,
   modules: [...modules.entries()].map(([name, v]) => ({ name, ...v })).sort((a, b) => b.files - a.files),
+  moduleMeta: Object.fromEntries(
+    [...modules.keys()].map((m) => {
+      const o = overlay.modules[m] as { name?: string; desc?: string } | undefined;
+      return [m, { display: o?.name ?? m, desc: o?.desc ?? "" }];
+    }),
+  ),
   modEdges: [...modEdges.entries()].map(([key, w]) => {
     const [src, dst] = key.split("→");
     return { src, dst, w, cyclic: cycles.has(key) };
@@ -165,7 +184,7 @@ function esc(s) { return s.replace(/&/g,"&amp;").replace(/</g,"&lt;"); }
 function render() {
   let nodes, edges;
   if (view.scope === "modules") {
-    nodes = DATA.modules.map(m => ({ id: m.name, label: m.name, meta: m.files + " files" + (m.blind ? " · " + m.blind + " blind" : ""), test: m.name === "tests" }));
+    nodes = DATA.modules.map(m => ({ id: m.name, label: (DATA.moduleMeta[m.name]?.display ?? m.name), meta: m.files + " files" + (m.blind ? " · " + m.blind + " blind" : ""), test: m.name === "tests" }));
     edges = DATA.modEdges.map(e => ({ src: e.src, dst: e.dst, w: e.w, cyclic: e.cyclic }));
     crumbs.innerHTML = "模块层 · " + nodes.length + " modules";
   } else {
@@ -204,7 +223,7 @@ function renderSide() {
     const cyc = DATA.modEdges.filter(e => e.cyclic);
     let h = "";
     if (cyc.length) h += '<div class="cyclic-banner">⚠ 检测到循环依赖: ' + cyc.map(e => esc(e.src)+" ⇄ "+esc(e.dst)).filter((v,i,a)=>a.indexOf(v)===i).slice(0,3).join("; ") + '</div>';
-    h += DATA.modules.map(m => '<div class="item" onclick="drill(\\''+m.name.replace(/'/g,"\\\\'")+'\\')"><span>'+esc(m.name)+'</span><span class="kind">'+m.files+' files'+(m.blind?' <span class="blind">'+m.blind+' blind</span>':'')+'</span></div>').join("");
+    h += DATA.modules.map(m => '<div class="item" onclick="drill(\\''+m.name.replace(/'/g,"\\\\'")+'\\')"><span>'+esc(DATA.moduleMeta[m.name]?.display ?? m.name)+'</span>'+(DATA.moduleMeta[m.name]?.desc ? '<div class="kind">'+esc(DATA.moduleMeta[m.name].desc)+'</div>' : '')+'<span class="kind">'+m.files+' files'+(m.blind?' <span class="blind">'+m.blind+' blind</span>':'')+'</span></div>').join("");
     detail.innerHTML = h;
   }
 }
@@ -219,7 +238,7 @@ function showFile(path) {
   const f = DATA.files.find(x => x.path === path); if (!f) return;
   detail.innerHTML = '<h2>' + esc(path) + '</h2>'
     + (f.blind ? '<div class="cyclic-banner">'+f.blind+' 个盲区（动态调用,影响可能被低估）</div>' : '')
-    + f.symbols.map(s => '<div class="item"><span>'+esc(s.name)+'</span><span class="kind">'+s.kind+' :'+s.line+'</span></div>').join("");
+    + f.symbols.map(s => '<div class="item" '+(DATA.repoUrl?'onclick="window.open(\\''+DATA.repoUrl+'/'+path+'#L'+s.line+'\\')"':'')+'><span>'+esc(s.name)+'</span><span class="kind">'+s.kind+' :'+s.line+'</span></div>').join("");
 }
 
 // 缩放平移
