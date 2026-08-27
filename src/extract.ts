@@ -126,6 +126,7 @@ export class Extractor {
       if (ts.isMethodDeclaration(node)) return "method";
       if (ts.isClassDeclaration(node)) return "class";
       if (ts.isInterfaceDeclaration(node)) return "interface";
+      if (ts.isTypeAliasDeclaration(node) || ts.isEnumDeclaration(node)) return "interface";
       // 顶层 const foo = () => {} / function 表达式
       if (
         ts.isVariableDeclaration(node) &&
@@ -316,7 +317,8 @@ export class Extractor {
   private declName(decl: ts.Node): string | undefined {
     if (
       (ts.isFunctionDeclaration(decl) || ts.isClassDeclaration(decl) || ts.isInterfaceDeclaration(decl) ||
-       ts.isMethodDeclaration(decl) || ts.isMethodSignature(decl) || ts.isVariableDeclaration(decl)) &&
+       ts.isMethodDeclaration(decl) || ts.isMethodSignature(decl) || ts.isVariableDeclaration(decl) ||
+       ts.isTypeAliasDeclaration(decl) || ts.isEnumDeclaration(decl)) &&
       decl.name && (ts.isIdentifier(decl.name) || ts.isStringLiteral(decl.name))
     ) return decl.name.text;
     return undefined;
