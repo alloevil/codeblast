@@ -8,6 +8,7 @@
  */
 import ts from "typescript";
 import path from "node:path";
+import fs from "node:fs";
 import type { Confidence, EdgeRow, NodeRow, BlindSpotRow } from "./schema";
 
 export interface ExtractResult {
@@ -32,6 +33,17 @@ export class Extractor {
     this.rootDir = repoRoot ?? path.dirname(path.resolve(tsconfigPath));
     this.program = ts.createProgram({ rootNames: parsed.fileNames, options: parsed.options });
     this.checker = this.program.getTypeChecker();
+  }
+  /** 兜底：给未被任何 tsconfig include 的散落文件（如 tsconfig 外的 test）建 program。 */
+  static forFiles(fileNames: string[], baseTsconfigPath: string, repoRoot: string): Extractor {
+    const configFile = ts.readConfigFile(baseTsconfigPath, ts.sys.readFile);
+    const parsed = ts.parseJsonConfigFileContent(configFile.config ?? {}, ts.sys, path.dirname(baseTsconfigPath));
+    const ex = Object.create(Extractor.prototype) as Extractor;
+    ex.rootDir = repoRoot;
+    ex.implementers = new Map();
+    ex.program = ts.createProgram({ rootNames: fileNames, options: parsed.options });
+    ex.checker = ex.program.getTypeChecker();
+    return ex;
   }
 
   sourceFiles(): ts.SourceFile[] {
@@ -157,7 +169,23 @@ export class Extractor {
       // 调用表达式 → calls 边
       if (ts.isCallExpression(node) || ts.isNewExpression(node)) {
         const caller = [...enclosing].reverse().find(Boolean) ?? relPath;
-        this.resolveCall(node, caller, relPath, lineOf(node), edges, blindSpots);
+        // 动态 import()：字面量 → imports 边；变量 → 盲区
+        if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
+          const arg = node.arguments[0];
+          if (arg && ts.isStringLiteral(arg)) {
+            const resolved = this.resolveModule(arg.text, sf.fileName);
+            if (resolved) {
+              edges.push({
+                src: relPath, dst: this.rel(resolved), kind: "imports",
+                file: relPath, line: lineOf(node), confidence: "exact", src_file: relPath,
+              });
+            }
+          } else {
+            blindSpots.push({ file: relPath, line: lineOf(node), reason: `dynamic import: ${(arg?.getText() ?? "").slice(0, 80)}`, src_file: relPath });
+          }
+        } else {
+          this.resolveCall(node, caller, relPath, lineOf(node), edges, blindSpots);
+        }
       }
 
       ts.forEachChild(node, visit);
@@ -215,7 +243,18 @@ export class Extractor {
       return;
     }
     const declFile = decl.getSourceFile();
-    if (declFile.isDeclarationFile || declFile.fileName.includes("node_modules")) return; // 外部库调用，v1 不入图
+    if (declFile.isDeclarationFile || declFile.fileName.includes("node_modules")) {
+      // 外部库调用整体不入图，但子进程 API 是进程边界：可能执行仓内代码，必须记盲区
+      const SUBPROCESS_APIS: Record<string, true> = {
+        exec: true, execSync: true, execFile: true, execFileSync: true,
+        spawn: true, spawnSync: true, fork: true,
+      };
+      const calleeName = sym?.name ?? "";
+      if (SUBPROCESS_APIS[calleeName] && declFile.fileName.includes("child_process")) {
+        blindSpots.push({ file: relPath, line, reason: `subprocess spawn: ${calleeName}`, src_file: relPath });
+      }
+      return;
+    }
 
     const dst = this.nodeIdOfDecl(decl);
     if (!dst) return;
@@ -247,9 +286,18 @@ export class Extractor {
 
   private resolveModule(specifier: string, fromFile: string): string | undefined {
     const r = ts.resolveModuleName(specifier, fromFile, this.program.getCompilerOptions(), ts.sys);
-    const resolved = r.resolvedModule?.resolvedFileName;
-    if (!resolved || resolved.includes("node_modules")) return undefined;
-    return resolved;
+    let resolved = r.resolvedModule?.resolvedFileName;
+    if (!resolved) return undefined;
+    // pnpm workspace: 包名导入经 node_modules 符号链接指回仓内 → realpath 穿透后再判断
+    if (resolved.includes("node_modules")) {
+      try {
+        resolved = fs.realpathSync(resolved);
+      } catch {
+        return undefined;
+      }
+      if (resolved.includes("node_modules")) return undefined; // 真外部包
+    }
+    return path.relative(this.rootDir, resolved).startsWith("..") ? undefined : resolved;
   }
 
   /** 稳定节点 id：<relpath>#<qualifiedName>。方法 = <relpath>#<Class>.<method>。 */

@@ -35,7 +35,7 @@ export interface ImpactResult {
   blind_spot_count: number; // 目标文件的盲区数量：诚实提示
 }
 
-const IMPACT_EDGE_KINDS = ["calls", "implements", "extends", "imports"] as const;
+const IMPACT_EDGE_KINDS = ["calls", "implements", "extends", "imports", "contains"] as const;
 const TEST_FILE_RE = /\.(test|spec)\.[cm]?[jt]sx?$|__tests__\//;
 
 export function impact(db: Database, targetId: string, maxNodes = 500): ImpactResult {
@@ -124,6 +124,24 @@ export function impact(db: Database, targetId: string, maxNodes = 500): ImpactRe
     items.push({
       id: n.id, name: n.name, kind: n.kind, file: n.file, line: n.line,
       level: "tests", hops: 1, confidence: "exact", via_file: n.file, via_line: n.line,
+    });
+  }
+  // 盲区可达测试：含子进程/非字面量动态 import 的测试文件，静态边接不上但可能执行任意仓内代码
+  // → 保守纳入每个影响集（confidence=conservative）。宁误报不漏报。
+  const blindReachTests = db.prepare(
+    `SELECT DISTINCT file FROM blind_spots
+     WHERE (reason LIKE 'subprocess spawn%' OR reason LIKE 'dynamic import%')`,
+  ).all() as { file: string }[];
+  const includedFiles = new Set(items.filter((it) => it.level === "tests").map((it) => it.file));
+  for (const { file } of blindReachTests) {
+    if (!TEST_FILE_RE.test(file) || includedFiles.has(file)) continue;
+    const bs = db.prepare(
+      "SELECT line, reason FROM blind_spots WHERE file = ? AND (reason LIKE 'subprocess spawn%' OR reason LIKE 'dynamic import%') LIMIT 1",
+    ).get(file) as { line: number; reason: string };
+    includedFiles.add(file);
+    items.push({
+      id: file, name: `${file} (${bs.reason})`, kind: "file", file, line: bs.line,
+      level: "tests", hops: 99, confidence: "conservative", via_file: file, via_line: bs.line,
     });
   }
 

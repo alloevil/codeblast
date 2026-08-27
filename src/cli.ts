@@ -84,19 +84,11 @@ const writeBatch = db.transaction(
 let indexed = 0, skipped = 0, nodeCount = 0, edgeCount = 0, blindCount = 0;
 const seenFiles = new Set<string>(); // 跨包去重：同一文件只归属第一个索引它的 program
 
-for (const tsconfigPath of tsconfigs) {
-  let extractor: Extractor;
-  try {
-    extractor = new Extractor(tsconfigPath, repoRoot);
-  } catch (err) {
-    console.error(`skip ${path.relative(repoRoot, tsconfigPath)}: ${err instanceof Error ? err.message.split("\n")[0] : err}`);
-    continue;
-  }
+function indexProgram(extractor: Extractor): void {
   extractor.collectImplementers();
-
   for (const sf of extractor.sourceFiles()) {
     const relPath = extractor.rel(sf.fileName);
-    if (relPath.startsWith("..") || seenFiles.has(relPath)) continue; // 仓库外或已被其他包索引
+    if (relPath.startsWith("..") || seenFiles.has(relPath)) continue;
     seenFiles.add(relPath);
 
     const hash = createHash("sha1").update(sf.text).digest("hex");
@@ -112,6 +104,37 @@ for (const tsconfigPath of tsconfigs) {
     edgeCount += edges.length;
     blindCount += blindSpots.length;
   }
+}
+
+for (const tsconfigPath of tsconfigs) {
+  let extractor: Extractor;
+  try {
+    extractor = new Extractor(tsconfigPath, repoRoot);
+  } catch (err) {
+    console.error(`skip ${path.relative(repoRoot, tsconfigPath)}: ${err instanceof Error ? err.message.split("\n")[0] : err}`);
+    continue;
+  }
+  indexProgram(extractor);
+}
+
+// 孤儿扫描：源码树里存在、但未被任何 tsconfig program 覆盖的 ts/tsx 文件（tsconfig include 之外的测试等）
+const orphans: string[] = [];
+const SKIP_DIRS: Record<string, true> = { node_modules: true, ".git": true, dist: true, build: true, coverage: true, ".next": true };
+function sweep(dir: string): void {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (entry.isDirectory()) {
+      if (!SKIP_DIRS[entry.name]) sweep(path.join(dir, entry.name));
+    } else if (/\.[cm]?tsx?$/.test(entry.name) && !entry.name.endsWith(".d.ts")) {
+      const abs = path.join(dir, entry.name);
+      const rel = path.relative(repoRoot, abs);
+      if (!seenFiles.has(rel)) orphans.push(abs);
+    }
+  }
+}
+sweep(repoRoot);
+if (orphans.length > 0) {
+  console.error(`orphan files (outside all tsconfigs): ${orphans.length}`);
+  indexProgram(Extractor.forFiles(orphans, tsconfigs[0], repoRoot));
 }
 
 const dt = ((performance.now() - t0) / 1000).toFixed(1);
