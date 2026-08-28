@@ -1,0 +1,402 @@
+[
+ {
+  "sha": "6a70335",
+  "subject": "docs: fix broken star history chart (#7470)",
+  "ok": true,
+  "silent": true,
+  "seconds": 36.7,
+  "comment_lines": 0
+ },
+ {
+  "sha": "acff823",
+  "subject": "fix(deps): update dependency srvx to v0.12.5 (#7437)",
+  "ok": true,
+  "silent": true,
+  "seconds": 18.4,
+  "comment_lines": 0
+ },
+ {
+  "sha": "dfbafa8",
+  "subject": "fix(client): abort JSONL stream on httpBatchStreamLink unsubscribe (#7390)",
+  "ok": true,
+  "silent": false,
+  "seconds": 18.0,
+  "comment_lines": 20
+ },
+ {
+  "sha": "cdbc280",
+  "subject": "fix(upgrade): clear the query cache on every fixture render (#7448)",
+  "ok": true,
+  "silent": false,
+  "seconds": 18.9,
+  "comment_lines": 9
+ },
+ {
+  "sha": "340811b",
+  "subject": "ci(example): fix Playwright e2e ffmpeg failures (#7412)",
+  "ok": true,
+  "silent": true,
+  "seconds": 18.5,
+  "comment_lines": 0
+ },
+ {
+  "sha": "6aec157",
+  "subject": "v11.18.0",
+  "ok": true,
+  "silent": true,
+  "seconds": 17.1,
+  "comment_lines": 0
+ },
+ {
+  "sha": "3e0e979",
+  "subject": "feat(openapi): Add server url support (#7411)",
+  "ok": true,
+  "silent": false,
+  "seconds": 18.6,
+  "comment_lines": 11
+ },
+ {
+  "sha": "f8f0c0e",
+  "subject": "chore: fix duplicate \"the\" in unstable-core JSDoc comment (#7366)",
+  "ok": true,
+  "silent": true,
+  "seconds": 18.7,
+  "comment_lines": 0
+ },
+ {
+  "sha": "c7360d4",
+  "subject": "fix(tanstack-react-query): add prefix support for mutation options (#7370)",
+  "ok": true,
+  "silent": true,
+  "seconds": 17.3,
+  "comment_lines": 0
+ },
+ {
+  "sha": "774b244",
+  "subject": "fix(ci): restore tests package version (#7393)",
+  "ok": true,
+  "silent": true,
+  "seconds": 18.2,
+  "comment_lines": 0
+ },
+ {
+  "sha": "23c723c",
+  "subject": "v11.17.0",
+  "ok": true,
+  "silent": true,
+  "seconds": 18.8,
+  "comment_lines": 0
+ },
+ {
+  "sha": "3c5252f",
+  "subject": "chore(www): Add Legora to website logos (#7358)",
+  "ok": true,
+  "silent": true,
+  "seconds": 19.0,
+  "comment_lines": 0
+ },
+ {
+  "sha": "331db6d",
+  "subject": "build: upgrade drizzle in next-sse-chat example (#7351)",
+  "ok": true,
+  "silent": true,
+  "seconds": 17.8,
+  "comment_lines": 0
+ },
+ {
+  "sha": "60c89fc",
+  "subject": "chore: upgrade pnpm to 10.33.1 (#7350)",
+  "ok": true,
+  "silent": true,
+  "seconds": 17.7,
+  "comment_lines": 0
+ },
+ {
+  "sha": "3791733",
+  "subject": "docs: sponsors sync",
+  "ok": true,
+  "silent": true,
+  "seconds": 18.9,
+  "comment_lines": 0
+ },
+ {
+  "sha": "63407c5",
+  "subject": "docs: add trpc-studio to awesome-trpc extensions (#7340)",
+  "ok": true,
+  "silent": true,
+  "seconds": 18.9,
+  "comment_lines": 0
+ },
+ {
+  "sha": "2c5b6a8",
+  "subject": "fix(server): handle React 19 proxy coercion in createInnerProxy (#7336)",
+  "ok": true,
+  "silent": true,
+  "seconds": 18.2,
+  "comment_lines": 0
+ },
+ {
+  "sha": "c188dab",
+  "subject": "chore(monorepo): remove versions from private workspaces (#7306)",
+  "ok": true,
+  "silent": true,
+  "seconds": 17.0,
+  "comment_lines": 0
+ },
+ {
+  "sha": "cb17317",
+  "subject": "fix(deps): update dependency undici to v8 (#7316)",
+  "ok": true,
+  "silent": true,
+  "seconds": 18.5,
+  "comment_lines": 0
+ },
+ {
+  "sha": "1638ac1",
+  "subject": "fix(deps): update dependency eslint-plugin-unicorn to v64 (#7314)",
+  "ok": true,
+  "silent": true,
+  "seconds": 19.0,
+  "comment_lines": 0
+ },
+ {
+  "sha": "231fdd0",
+  "subject": "chore(deps): update codecov/codecov-action action to v6 (#7313)",
+  "ok": true,
+  "silent": true,
+  "seconds": 19.0,
+  "comment_lines": 0
+ },
+ {
+  "sha": "dff3dfe",
+  "subject": "chore(deps): bump fastify from 5.8.1 to 5.8.3 (#7288)",
+  "ok": true,
+  "silent": true,
+  "seconds": 18.7,
+  "comment_lines": 0
+ },
+ {
+  "sha": "a6f049e",
+  "subject": "fix(deps): update dependency @clack/prompts to v1.2.0 (#7312)",
+  "ok": true,
+  "silent": true,
+  "seconds": 16.9,
+  "comment_lines": 0
+ },
+ {
+  "sha": "7ba14fd",
+  "subject": "chore(deps): update dependency @oxc-project/runtime to v0.123.0 (#7311)",
+  "ok": true,
+  "silent": true,
+  "seconds": 17.5,
+  "comment_lines": 0
+ },
+ {
+  "sha": "1b08507",
+  "subject": "fix(deps): update dependency srvx to v0.11.14 (#7310)",
+  "ok": true,
+  "silent": true,
+  "seconds": 18.6,
+  "comment_lines": 0
+ },
+ {
+  "sha": "48c5158",
+  "subject": "fix(deps): update dependency @tanstack/intent to ^0.0.27 (#7309)",
+  "ok": true,
+  "silent": true,
+  "seconds": 18.8,
+  "comment_lines": 0
+ },
+ {
+  "sha": "19c599c",
+  "subject": "fix(www): Add accessible text to links without discernible text (#7302)",
+  "ok": true,
+  "silent": true,
+  "seconds": 19.7,
+  "comment_lines": 0
+ },
+ {
+  "sha": "d3c4051",
+  "subject": "feat: Add subscription inferrence helpers (#7303)",
+  "ok": true,
+  "silent": false,
+  "seconds": 18.3,
+  "comment_lines": 24
+ },
+ {
+  "sha": "d2ea28e",
+  "subject": "docs: Add oasdiff docs to openapi (#7299)",
+  "ok": true,
+  "silent": true,
+  "seconds": 16.9,
+  "comment_lines": 0
+ },
+ {
+  "sha": "fb9fe87",
+  "subject": "chore: Update Hey API for new type imports (#7298)",
+  "ok": true,
+  "silent": true,
+  "seconds": 17.4,
+  "comment_lines": 0
+ },
+ {
+  "sha": "492bacf",
+  "subject": "chore: Add cache checks for openapi router fixtures (#7296)",
+  "ok": true,
+  "silent": false,
+  "seconds": 17.8,
+  "comment_lines": 44
+ },
+ {
+  "sha": "2b8a4f8",
+  "subject": "fix(server): unwrap error from cause for streaming onError (#7286)",
+  "ok": true,
+  "silent": true,
+  "seconds": 17.6,
+  "comment_lines": 0
+ },
+ {
+  "sha": "59f2cdb",
+  "subject": "chore: Review stale skills (v11.16.0) (#7295)",
+  "ok": true,
+  "silent": true,
+  "seconds": 18.0,
+  "comment_lines": 0
+ },
+ {
+  "sha": "66d5b5e",
+  "subject": "chore(deps): bump next from 15.5.10 to 15.5.14 (#7268)",
+  "ok": true,
+  "silent": true,
+  "seconds": 18.2,
+  "comment_lines": 0
+ },
+ {
+  "sha": "2713275",
+  "subject": "v11.16.0",
+  "ok": true,
+  "silent": true,
+  "seconds": 18.4,
+  "comment_lines": 0
+ },
+ {
+  "sha": "85b0ab8",
+  "subject": "v11.15.2",
+  "ok": true,
+  "silent": true,
+  "seconds": 17.3,
+  "comment_lines": 0
+ },
+ {
+  "sha": "c4b1d74",
+  "subject": "chore: Review stale skills (manual) (#7294)",
+  "ok": true,
+  "silent": true,
+  "seconds": 16.9,
+  "comment_lines": 0
+ },
+ {
+  "sha": "bdf2c65",
+  "subject": "feat: OpenAPI Cyclic Types support (#7283)",
+  "ok": true,
+  "silent": false,
+  "seconds": 17.4,
+  "comment_lines": 44
+ },
+ {
+  "sha": "12bbc8e",
+  "subject": "chore(deps): update dependency devalue to v5.6.4 [security] (#7293)",
+  "ok": true,
+  "silent": true,
+  "seconds": 17.7,
+  "comment_lines": 0
+ },
+ {
+  "sha": "586d930",
+  "subject": "fix(deps): update dependency srvx to v0.11.13 [security] (#7292)",
+  "ok": true,
+  "silent": true,
+  "seconds": 17.6,
+  "comment_lines": 0
+ },
+ {
+  "sha": "88b02b8",
+  "subject": "v11.15.1",
+  "ok": true,
+  "silent": true,
+  "seconds": 17.2,
+  "comment_lines": 0
+ },
+ {
+  "sha": "a2f90fc",
+  "subject": "fix: error handling with Node VM (#7280)",
+  "ok": true,
+  "silent": false,
+  "seconds": 18.1,
+  "comment_lines": 23
+ },
+ {
+  "sha": "f6e839f",
+  "subject": "fix(www): render sponsor links in static HTML for SEO (#7285)",
+  "ok": true,
+  "silent": true,
+  "seconds": 18.1,
+  "comment_lines": 0
+ },
+ {
+  "sha": "9b42e02",
+  "subject": "chore: Add superset config (#7284)",
+  "ok": true,
+  "silent": true,
+  "seconds": 17.6,
+  "comment_lines": 0
+ },
+ {
+  "sha": "25b97f5",
+  "subject": "v11.15.0",
+  "ok": true,
+  "silent": true,
+  "seconds": 16.5,
+  "comment_lines": 0
+ },
+ {
+  "sha": "c9c211f",
+  "subject": "feat(server): max batch size (#7191)",
+  "ok": true,
+  "silent": false,
+  "seconds": 17.2,
+  "comment_lines": 5
+ },
+ {
+  "sha": "e971f84",
+  "subject": "fix: empty string fallback on pathExtractor (#7270)",
+  "ok": true,
+  "silent": true,
+  "seconds": 16.9,
+  "comment_lines": 0
+ },
+ {
+  "sha": "7d9bb2e",
+  "subject": "chore(deps): update peter-evans/repository-dispatch action to v4 (#7278)",
+  "ok": true,
+  "silent": true,
+  "seconds": 17.6,
+  "comment_lines": 0
+ },
+ {
+  "sha": "f3df74b",
+  "subject": "chore(deps): update actions/setup-node action to v6 (#7277)",
+  "ok": true,
+  "silent": true,
+  "seconds": 17.8,
+  "comment_lines": 0
+ },
+ {
+  "sha": "b682e39",
+  "subject": "chore(deps): update actions/checkout action to v6 (#7276)",
+  "ok": true,
+  "silent": true,
+  "seconds": 17.6,
+  "comment_lines": 0
+ }
+]

@@ -23,6 +23,14 @@ const urlFlag = args.indexOf("--repo-url");
 const repoUrl = urlFlag >= 0 ? args[urlFlag + 1] : undefined;
 
 async function buildGraphAt(ref: string, db: string): Promise<void> {
+  // sha 级缓存：同一 commit 的图确定性相同，回放/连续 PR 更新时直接复用
+  const shaProc = Bun.spawnSync(["git", "rev-parse", ref], { cwd: repo });
+  const sha = shaProc.exitCode === 0 ? shaProc.stdout.toString().trim() : null;
+  const cache = sha ? `/tmp/codeblast-cache-${sha}.db` : null;
+  if (cache && (await Bun.file(cache).exists())) {
+    Bun.spawnSync(["cp", cache, db]);
+    return;
+  }
   const wt = `/tmp/codeblast-pr-${ref.slice(0, 12)}`;
   Bun.spawnSync(["git", "worktree", "remove", "--force", wt], { cwd: repo });
   const add = Bun.spawnSync(["git", "worktree", "add", "--detach", wt, ref], { cwd: repo });
@@ -30,6 +38,11 @@ async function buildGraphAt(ref: string, db: string): Promise<void> {
   try {
     const p = Bun.spawnSync(["bun", "run", path.join(import.meta.dir, "cli.ts"), wt, "--db", db]);
     if (p.exitCode !== 0) throw new Error(p.stderr.toString().slice(0, 500));
+    // WAL checkpoint：否则 cp 只带走 .db 主文件，未合并事务全部丢失（幻影 diff 之源）
+    const ck = new Database(db);
+    ck.exec("PRAGMA wal_checkpoint(TRUNCATE);");
+    ck.close();
+    if (cache) Bun.spawnSync(["cp", db, cache]);
   } finally {
     Bun.spawnSync(["git", "worktree", "remove", "--force", wt], { cwd: repo });
   }

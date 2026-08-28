@@ -12,12 +12,13 @@ M1 验收 — 变异测试对照（方法照 arXiv:1812.06286）。
 import json
 import sqlite3
 import subprocess
+import sys
 from pathlib import Path
 
-REPO = Path("/tmp/trpc")
-DB = "/tmp/trpc-full.db"
-ATLAS = Path.home() / "projects/codeatlas"
-N_MUTANTS = 10
+REPO = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("/tmp/trpc")
+DB = sys.argv[2] if len(sys.argv) > 2 else "/tmp/trpc-full.db"
+ATLAS = Path(__file__).resolve().parent.parent
+N_MUTANTS = int(sys.argv[3]) if len(sys.argv) > 3 else 10
 
 def impact_test_files(node_id: str) -> set[str]:
     out = subprocess.run(
