@@ -1,0 +1,234 @@
+[
+  {
+    "node": "packages/server/src/unstable-core-do-not-import/router.ts#getProcedureAtPath",
+    "truth": 105,
+    "predicted": 227,
+    "missed": [],
+    "recall_hit": true,
+    "precision": 0.463
+  },
+  {
+    "node": "packages/client/src/createTRPCClient.ts#createTRPCClient",
+    "truth": 108,
+    "predicted": 162,
+    "missed": [],
+    "recall_hit": true,
+    "precision": 0.667
+  },
+  {
+    "node": "packages/next/src/app-dir/create-action-hook.tsx#experimental_createActionHook",
+    "truth": 1,
+    "predicted": 4,
+    "missed": [],
+    "recall_hit": true,
+    "precision": 0.25
+  },
+  {
+    "node": "packages/tanstack-react-query/src/internals/utils.ts#getQueryKeyInternal",
+    "truth": 11,
+    "predicted": 50,
+    "missed": [],
+    "recall_hit": true,
+    "precision": 0.22
+  },
+  {
+    "node": "packages/client/src/links/internals/createChain.ts#createChain",
+    "truth": 118,
+    "predicted": 164,
+    "missed": [],
+    "recall_hit": true,
+    "precision": 0.72
+  },
+  {
+    "node": "packages/client/src/TRPCClientError.ts#TRPCClientError.from",
+    "truth": 34,
+    "predicted": 164,
+    "missed": [],
+    "recall_hit": true,
+    "precision": 0.207
+  },
+  {
+    "node": "packages/react-query/src/server/ssgProxy.ts#createServerSideHelpers",
+    "truth": 6,
+    "predicted": 9,
+    "missed": [],
+    "recall_hit": true,
+    "precision": 0.667
+  },
+  {
+    "node": "packages/server/src/unstable-core-do-not-import/middleware.ts#experimental_standaloneMiddleware",
+    "truth": 154,
+    "predicted": 227,
+    "missed": [],
+    "recall_hit": true,
+    "precision": 0.678
+  },
+  {
+    "node": "packages/server/src/unstable-core-do-not-import/utils.ts#run",
+    "note": "mutant not killed (dead code path or type-only)"
+  },
+  {
+    "node": "packages/tanstack-react-query/src/internals/utils.ts#readQueryKey",
+    "truth": 8,
+    "predicted": 50,
+    "missed": [],
+    "recall_hit": true,
+    "precision": 0.16
+  },
+  {
+    "node": "packages/server/src/adapters/next.ts#createNextApiHandler",
+    "truth": 1,
+    "predicted": 5,
+    "missed": [],
+    "recall_hit": true,
+    "precision": 0.2
+  },
+  {
+    "node": "packages/react-query/src/createTRPCReact.tsx#createTRPCReact",
+    "truth": 48,
+    "predicted": 97,
+    "missed": [],
+    "recall_hit": true,
+    "precision": 0.495
+  },
+  {
+    "node": "packages/server/src/adapters/standalone.ts#createHTTPServer",
+    "truth": 2,
+    "predicted": 147,
+    "missed": [],
+    "recall_hit": true,
+    "precision": 0.014
+  },
+  {
+    "node": "packages/server/src/adapters/standalone.ts#createHTTPHandler",
+    "truth": 103,
+    "predicted": 147,
+    "missed": [],
+    "recall_hit": true,
+    "precision": 0.701
+  },
+  {
+    "node": "packages/server/src/unstable-core-do-not-import/initTRPC.ts#TRPCBuilder.context",
+    "truth": 30,
+    "predicted": 227,
+    "missed": [],
+    "recall_hit": true,
+    "precision": 0.132
+  },
+  {
+    "node": "packages/server/src/observable/observable.ts#observable",
+    "truth": 112,
+    "predicted": 227,
+    "missed": [],
+    "recall_hit": true,
+    "precision": 0.493
+  },
+  {
+    "node": "packages/server/src/unstable-core-do-not-import/initTRPC.ts#TRPCBuilder.meta",
+    "truth": 7,
+    "predicted": 227,
+    "missed": [],
+    "recall_hit": true,
+    "precision": 0.031
+  },
+  {
+    "node": "packages/server/src/unstable-core-do-not-import/router.ts#lazy",
+    "truth": 154,
+    "predicted": 227,
+    "missed": [],
+    "recall_hit": true,
+    "precision": 0.678
+  },
+  {
+    "node": "packages/server/src/observable/observable.ts#observableToAsyncIterable",
+    "truth": 7,
+    "predicted": 227,
+    "missed": [],
+    "recall_hit": true,
+    "precision": 0.031
+  },
+  {
+    "node": "packages/server/src/adapters/node-http/incomingMessageToRequest.ts#incomingMessageToRequest",
+    "truth": 111,
+    "predicted": 173,
+    "missed": [],
+    "recall_hit": true,
+    "precision": 0.642
+  },
+  {
+    "node": "packages/next/src/app-dir/create-action-hook.tsx#experimental_serverActionLink",
+    "truth": 1,
+    "predicted": 4,
+    "missed": [],
+    "recall_hit": true,
+    "precision": 0.25
+  },
+  {
+    "node": "packages/server/src/observable/operators.ts#share",
+    "truth": 93,
+    "predicted": 227,
+    "missed": [],
+    "recall_hit": true,
+    "precision": 0.41
+  },
+  {
+    "node": "packages/server/src/observable/operators.ts#distinctUntilChanged",
+    "truth": 1,
+    "predicted": 227,
+    "missed": [],
+    "recall_hit": true,
+    "precision": 0.004
+  },
+  {
+    "node": "packages/server/src/adapters/express.ts#createExpressMiddleware",
+    "truth": 1,
+    "predicted": 4,
+    "missed": [],
+    "recall_hit": true,
+    "precision": 0.25
+  },
+  {
+    "node": "packages/server/src/observable/operators.ts#tap",
+    "truth": 34,
+    "predicted": 227,
+    "missed": [],
+    "recall_hit": true,
+    "precision": 0.15
+  },
+  {
+    "node": "packages/client/src/createTRPCClient.ts#getUntypedClient",
+    "truth": 51,
+    "predicted": 162,
+    "missed": [],
+    "recall_hit": true,
+    "precision": 0.315
+  },
+  {
+    "node": "packages/client/src/internals/TRPCUntypedClient.ts#TRPCUntypedClient.query",
+    "truth": 77,
+    "predicted": 162,
+    "missed": [],
+    "recall_hit": true,
+    "precision": 0.475
+  },
+  {
+    "node": "packages/server/src/adapters/aws-lambda/index.ts#awsLambdaStreamingRequestHandler",
+    "truth": 1,
+    "predicted": 4,
+    "missed": [],
+    "recall_hit": true,
+    "precision": 0.25
+  },
+  {
+    "node": "packages/openapi/src/schemaExtraction.ts#extractZodDescriptions",
+    "note": "mutant not killed (dead code path or type-only)"
+  },
+  {
+    "node": "packages/server/src/unstable-core-do-not-import/stream/utils/disposable.ts#makeAsyncResource",
+    "truth": 109,
+    "predicted": 228,
+    "missed": [],
+    "recall_hit": true,
+    "precision": 0.478
+  }
+]
