@@ -8,12 +8,13 @@ from pathlib import Path
 
 REPO = "/tmp/trpc"
 ATLAS = Path.home() / "projects/codeblast"
-OUT_DIR = Path("/tmp/pr-replay")
+OUT_DIR = Path(sys.argv[2]) if len(sys.argv) > 2 else Path("/tmp/pr-replay")
 OUT_DIR.mkdir(exist_ok=True)
+SKIP = int(sys.argv[1]) if len(sys.argv) > 1 else 0
 N = 50
 
 commits = subprocess.run(
-    ["git", "log", "--oneline", "--no-merges", "--format=%h %s", "origin/main", f"-{N}"],
+    ["git", "log", "--oneline", "--no-merges", "--format=%h %s", "origin/main", f"--skip={SKIP}", f"-{N}"],
     cwd=REPO, capture_output=True, text=True,
 ).stdout.strip().splitlines()
 
