@@ -21,15 +21,17 @@ export interface GraphDiff {
   renamed: RenameDelta[];
   edgesAdded: EdgeDelta[];
   edgesRemoved: EdgeDelta[];
+  /** export 可见性变化：同一符号 exported 位翻转（API 面变化,静默不一致案例 62c6ab0） */
+  visibilityChanged: { id: string; name: string; kind: string; file: string; line: number; nowExported: boolean }[];
 }
 
-interface NodeRow { id: string; kind: string; name: string; file: string; line: number }
+interface NodeRow { id: string; kind: string; name: string; file: string; line: number; exported: number }
 interface EdgeRow { src: string; dst: string; kind: string; file: string; line: number }
 
 const STRUCTURAL_EDGE_KINDS = "('calls','imports','implements','extends')";
 
 export function graphDiff(dbA: Database, dbB: Database): GraphDiff {
-  const q = "SELECT id, kind, name, file, line FROM nodes WHERE kind NOT IN ('file')";
+  const q = "SELECT id, kind, name, file, line, exported FROM nodes WHERE kind NOT IN ('file')";
   const nodesA = new Map((dbA.prepare(q).all() as NodeRow[]).map((n) => [n.id, n]));
   const nodesB = new Map((dbB.prepare(q).all() as NodeRow[]).map((n) => [n.id, n]));
 
@@ -37,6 +39,13 @@ export function graphDiff(dbA: Database, dbB: Database): GraphDiff {
   const rawRemoved: NodeRow[] = [];
   for (const [id, n] of nodesB) if (!nodesA.has(id)) rawAdded.push(n);
   for (const [id, n] of nodesA) if (!nodesB.has(id)) rawRemoved.push(n);
+  const visibilityChanged: GraphDiff["visibilityChanged"] = [];
+  for (const [id, b] of nodesB) {
+    const a = nodesA.get(id);
+    if (a && a.exported !== b.exported) {
+      visibilityChanged.push({ id, name: b.name, kind: b.kind, file: b.file, line: b.line, nowExported: b.exported === 1 });
+    }
+  }
 
   // 重命名匹配
   const renamed: RenameDelta[] = [];
@@ -82,6 +91,7 @@ export function graphDiff(dbA: Database, dbB: Database): GraphDiff {
     renamed,
     edgesAdded,
     edgesRemoved,
+    visibilityChanged,
   };
 }
 

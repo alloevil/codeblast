@@ -50,12 +50,18 @@ for (const e of imports) {
 
 // 盲区计数按模块归属（诚实呈现）
 const blinds = db.prepare(
-  "SELECT file, COUNT(*) c FROM blind_spots WHERE reason NOT LIKE 'test-global%' GROUP BY file",
-).all() as { file: string; c: number }[];
-const blindByModule = new Map<string, number>();
+  `SELECT file,
+     SUM(CASE WHEN reason LIKE 'dynamic%' OR reason LIKE 'subprocess%' OR reason LIKE 'star import%' OR reason LIKE 'unresolved self%' OR reason LIKE 'attribute call%' THEN 1 ELSE 0 END) dyn,
+     SUM(CASE WHEN reason LIKE 'unresolved call%' THEN 1 ELSE 0 END) unres
+   FROM blind_spots WHERE reason NOT LIKE 'test-global%' GROUP BY file`,
+).all() as { file: string; dyn: number; unres: number }[];
+const blindByModule = new Map<string, { dyn: number; unres: number }>();
 for (const b of blinds) {
   const m = moduleOf(b.file);
-  blindByModule.set(m, (blindByModule.get(m) ?? 0) + b.c);
+  const cur = blindByModule.get(m) ?? { dyn: 0, unres: 0 };
+  cur.dyn += b.dyn;
+  cur.unres += b.unres;
+  blindByModule.set(m, cur);
 }
 
 // Mermaid 输出
@@ -73,8 +79,11 @@ const idOf = (m: string): string => {
 const lines: string[] = ["```mermaid", "flowchart TD"];
 const sorted = [...fileCount.entries()].sort((a, b) => b[1] - a[1]);
 for (const [m, count] of sorted) {
-  const blind = blindByModule.get(m) ?? 0;
-  const label = `${m}<br/>${count} files${blind > 0 ? ` · ${blind} blind` : ""}`;
+  const blind = blindByModule.get(m) ?? { dyn: 0, unres: 0 };
+  const parts = [`${count} files`];
+  if (blind.dyn > 0) parts.push(`${blind.dyn} dyn`);
+  if (blind.unres > 0) parts.push(`${blind.unres} unres`);
+  const label = `${m}<br/>${parts.join(" · ")}`;
   const shape = m === "tests" ? `${idOf(m)}[/"${label}"/]` : `${idOf(m)}["${label}"]`;
   lines.push(`    ${shape}`);
 }
@@ -87,7 +96,7 @@ lines.push("```");
 
 const summaryTable = [
   "",
-  "| 模块 | 文件数 | 盲区 | 出边依赖 | 入边被依赖 |",
+  "| 模块 | 文件数 | 动态调用盲区 | 未解析调用 | 出边依赖 | 入边被依赖 |",
   "|---|---|---|---|---|",
 ];
 const outDeg = new Map<string, number>();
@@ -99,7 +108,7 @@ for (const [key, w] of weight) {
 }
 for (const [m, count] of sorted) {
   summaryTable.push(
-    `| ${m} | ${count} | ${blindByModule.get(m) ?? 0} | ${outDeg.get(m) ?? 0} | ${inDeg.get(m) ?? 0} |`,
+    `| ${m} | ${count} | ${blindByModule.get(m)?.dyn ?? 0} | ${blindByModule.get(m)?.unres ?? 0} | ${outDeg.get(m) ?? 0} | ${inDeg.get(m) ?? 0} |`,
   );
 }
 
@@ -107,6 +116,8 @@ const doc = [
   `# Architecture Map`,
   "",
   `> codeblast M3-v0（目录级折叠）· 节点=模块（含文件数/盲区数），边=import 依赖（数字=强度）`,
+  `> 口径: **dyn** = 结构性动态调用（eval/动态import/子进程/属性链）,静态原理性不可达;`,
+  `> **unres** = 调用目标解析失败（多为缺依赖或复杂表达式）,可能因环境不全而虚高。`,
   "",
   ...lines,
   ...summaryTable,
