@@ -35,13 +35,16 @@ const moduleOf = (file: string): string => {
 };
 
 // ---- 数据装配 ----
-interface FileInfo { path: string; module: string; blind: number; symbols: { name: string; kind: string; line: number }[] }
+interface FileInfo { path: string; module: string; blind: { dyn: number; unres: number }; symbols: { name: string; kind: string; line: number }[] }
 
 const files = db.prepare("SELECT file FROM nodes WHERE kind = 'file'").all() as { file: string }[];
 const blindRows = db.prepare(
-  "SELECT file, COUNT(*) c FROM blind_spots WHERE reason NOT LIKE 'test-global%' GROUP BY file",
-).all() as { file: string; c: number }[];
-const blindMap = new Map(blindRows.map((b) => [b.file, b.c]));
+  `SELECT file,
+     SUM(CASE WHEN reason LIKE 'unresolved call%' THEN 0 ELSE 1 END) dyn,
+     SUM(CASE WHEN reason LIKE 'unresolved call%' THEN 1 ELSE 0 END) unres
+   FROM blind_spots WHERE reason NOT LIKE 'test-global%' GROUP BY file`,
+).all() as { file: string; dyn: number; unres: number }[];
+const blindMap = new Map(blindRows.map((b) => [b.file, { dyn: b.dyn, unres: b.unres }]));
 const symRows = db.prepare(
   "SELECT file, name, kind, line FROM nodes WHERE kind NOT IN ('file','module') ORDER BY file, line",
 ).all() as { file: string; name: string; kind: string; line: number }[];
@@ -55,7 +58,7 @@ for (const s of symRows) {
 let fileInfos: FileInfo[] = files.map((f) => ({
   path: f.file,
   module: moduleOf(f.file),
-  blind: blindMap.get(f.file) ?? 0,
+  blind: blindMap.get(f.file) ?? { dyn: 0, unres: 0 },
   symbols: symsByFile.get(f.file) ?? [],
 }));
 
@@ -69,11 +72,12 @@ const effModule = (m: string): string => ovMap.get(m)?.effective ?? m;
 for (const fi of fileInfos) fi.module = effModule(fi.module);
 const hiddenModules = new Set([...ovMap.values()].filter((v) => v.hidden).map((v) => v.effective));
 fileInfos = fileInfos.filter((f) => !hiddenModules.has(f.module));
-const modules = new Map<string, { files: number; blind: number }>();
+const modules = new Map<string, { files: number; blind: { dyn: number; unres: number } }>();
 for (const fi of fileInfos) {
-  const m = modules.get(fi.module) ?? { files: 0, blind: 0 };
+  const m = modules.get(fi.module) ?? { files: 0, blind: { dyn: 0, unres: 0 } };
   m.files++;
-  m.blind += fi.blind;
+  m.blind.dyn += fi.blind.dyn;
+  m.blind.unres += fi.blind.unres;
   modules.set(fi.module, m);
 }
 const modEdges = new Map<string, number>();
@@ -155,6 +159,13 @@ const html = `<!DOCTYPE html>
   <p class="hint">点击模块下钻到文件层;点击文件查看符号。红色虚线 = 循环依赖。滚轮缩放,拖拽平移。</p>
 </div>
 <script>
+function blindLabel(b) {
+  if (!b || (!b.dyn && !b.unres)) return "";
+  const parts = [];
+  if (b.dyn) parts.push(b.dyn + " dyn");
+  if (b.unres) parts.push(b.unres + " unres");
+  return " · " + parts.join(" · ");
+}
 const DATA = ${JSON.stringify(data)};
 const svg = document.getElementById("svg"), vp = document.getElementById("viewport");
 const detail = document.getElementById("detail"), crumbs = document.getElementById("crumbs");
@@ -184,13 +195,13 @@ function esc(s) { return s.replace(/&/g,"&amp;").replace(/</g,"&lt;"); }
 function render() {
   let nodes, edges;
   if (view.scope === "modules") {
-    nodes = DATA.modules.map(m => ({ id: m.name, label: (DATA.moduleMeta[m.name]?.display ?? m.name), meta: m.files + " files" + (m.blind ? " · " + m.blind + " blind" : ""), test: m.name === "tests" }));
+    nodes = DATA.modules.map(m => ({ id: m.name, label: (DATA.moduleMeta[m.name]?.display ?? m.name), meta: m.files + " files" + blindLabel(m.blind), test: m.name === "tests" }));
     edges = DATA.modEdges.map(e => ({ src: e.src, dst: e.dst, w: e.w, cyclic: e.cyclic }));
     crumbs.innerHTML = "模块层 · " + nodes.length + " modules";
   } else {
     const fs = DATA.files.filter(f => f.module === view.module);
     const inSet = new Set(fs.map(f => f.path));
-    nodes = fs.map(f => ({ id: f.path, label: f.path.split("/").pop(), meta: f.symbols.length + " symbols" + (f.blind ? " · " + f.blind + " blind" : ""), test: false }));
+    nodes = fs.map(f => ({ id: f.path, label: f.path.split("/").pop(), meta: f.symbols.length + " symbols" + blindLabel(f.blind), test: false }));
     const agg = {};
     DATA.fileEdges.forEach(e => {
       if (inSet.has(e.src) && inSet.has(e.dst)) { const k = e.src+"→"+e.dst; agg[k] = (agg[k]||0)+1; }
@@ -223,7 +234,7 @@ function renderSide() {
     const cyc = DATA.modEdges.filter(e => e.cyclic);
     let h = "";
     if (cyc.length) h += '<div class="cyclic-banner">⚠ 检测到循环依赖: ' + cyc.map(e => esc(e.src)+" ⇄ "+esc(e.dst)).filter((v,i,a)=>a.indexOf(v)===i).slice(0,3).join("; ") + '</div>';
-    h += DATA.modules.map(m => '<div class="item" onclick="drill(\\''+m.name.replace(/'/g,"\\\\'")+'\\')"><span>'+esc(DATA.moduleMeta[m.name]?.display ?? m.name)+'</span>'+(DATA.moduleMeta[m.name]?.desc ? '<div class="kind">'+esc(DATA.moduleMeta[m.name].desc)+'</div>' : '')+'<span class="kind">'+m.files+' files'+(m.blind?' <span class="blind">'+m.blind+' blind</span>':'')+'</span></div>').join("");
+    h += DATA.modules.map(m => '<div class="item" onclick="drill(\\''+m.name.replace(/'/g,"\\\\'")+'\\')"><span>'+esc(DATA.moduleMeta[m.name]?.display ?? m.name)+'</span>'+(DATA.moduleMeta[m.name]?.desc ? '<div class="kind">'+esc(DATA.moduleMeta[m.name].desc)+'</div>' : '')+'<span class="kind">'+m.files+' files'+'<span class="blind">'+blindLabel(m.blind)+'</span>'+'</span></div>').join("");
     detail.innerHTML = h;
   }
 }
@@ -237,7 +248,7 @@ function goHome() { view = { scope: "modules", module: null }; render(); }
 function showFile(path) {
   const f = DATA.files.find(x => x.path === path); if (!f) return;
   detail.innerHTML = '<h2>' + esc(path) + '</h2>'
-    + (f.blind ? '<div class="cyclic-banner">'+f.blind+' 个盲区（动态调用,影响可能被低估）</div>' : '')
+    + ((f.blind.dyn || f.blind.unres) ? '<div class="cyclic-banner">盲区: '+(f.blind.dyn||0)+' 动态调用（原理性不可达） + '+(f.blind.unres||0)+' 解析失败（可能因缺依赖虚高）— 影响可能被低估</div>' : '')
     + f.symbols.map(s => '<div class="item" '+(DATA.repoUrl?'onclick="window.open(\\''+DATA.repoUrl+'/'+path+'#L'+s.line+'\\')"':'')+'><span>'+esc(s.name)+'</span><span class="kind">'+s.kind+' :'+s.line+'</span></div>').join("");
 }
 
