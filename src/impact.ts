@@ -23,6 +23,8 @@ export interface ImpactItem {
   hops: number;
   /** 该路径上最弱的置信度：exact > conservative */
   confidence: "exact" | "conservative";
+  /** 到达通道：call = 全程函数级边（calls/implements/extends）；file = 途经文件级边（imports/contains） */
+  channel: "call" | "file";
   /** 到达此节点的证据边：调用发生处 */
   via_file: string;
   via_line: number;
@@ -61,9 +63,9 @@ export function impact(db: Database, targetId: string, maxNodes = 500): ImpactRe
   }
 
   // BFS
-  const visited = new Map<string, { hops: number; confidence: "exact" | "conservative"; via_file: string; via_line: number }>();
+  const visited = new Map<string, { hops: number; confidence: "exact" | "conservative"; via_file: string; via_line: number; fileLevel: boolean }>();
   let frontier = [targetId];
-  visited.set(targetId, { hops: 0, confidence: "exact", via_file: targetRow.file, via_line: 0 });
+  visited.set(targetId, { hops: 0, confidence: "exact", via_file: targetRow.file, via_line: 0, fileLevel: false });
   let truncated = false;
 
   while (frontier.length > 0 && !truncated) {
@@ -73,7 +75,8 @@ export function impact(db: Database, targetId: string, maxNodes = 500): ImpactRe
       for (const e of byDst.get(cur) ?? []) {
         if (visited.has(e.src)) continue;
         const conf = e.confidence === "conservative" || curInfo.confidence === "conservative" ? "conservative" : "exact";
-        visited.set(e.src, { hops: curInfo.hops + 1, confidence: conf, via_file: e.file, via_line: e.line });
+        const fileLevel = curInfo.fileLevel || e.kind === "imports" || e.kind === "contains";
+        visited.set(e.src, { hops: curInfo.hops + 1, confidence: conf, via_file: e.file, via_line: e.line, fileLevel });
         next.push(e.src);
         if (visited.size > maxNodes) { truncated = true; break; }
       }
@@ -99,6 +102,7 @@ export function impact(db: Database, targetId: string, maxNodes = 500): ImpactRe
       id: n.id, name: n.name, kind: n.kind, file: n.file, line: n.line,
       level, hops: info.hops, confidence: info.confidence,
       via_file: info.via_file, via_line: info.via_line,
+      channel: info.fileLevel ? "file" : "call",
     });
   }
 
@@ -114,6 +118,7 @@ export function impact(db: Database, targetId: string, maxNodes = 500): ImpactRe
         id: n.id, name: n.name, kind: n.kind, file: n.file, line: n.line,
         level: "tests", hops: it.hops + 1, confidence: it.confidence,
         via_file: n.file, via_line: n.line,
+        channel: it.channel,
       });
     }
   }
@@ -125,6 +130,7 @@ export function impact(db: Database, targetId: string, maxNodes = 500): ImpactRe
     items.push({
       id: n.id, name: n.name, kind: n.kind, file: n.file, line: n.line,
       level: "tests", hops: 1, confidence: "exact", via_file: n.file, via_line: n.line,
+      channel: "call",
     });
   }
   // 盲区可达测试：含子进程/非字面量动态 import 的测试文件，静态边接不上但可能执行任意仓内代码
@@ -143,6 +149,7 @@ export function impact(db: Database, targetId: string, maxNodes = 500): ImpactRe
     items.push({
       id: file, name: `${file} (${bs.reason})`, kind: "file", file, line: bs.line,
       level: "tests", hops: 99, confidence: "conservative", via_file: file, via_line: bs.line,
+      channel: "file",
     });
   }
 

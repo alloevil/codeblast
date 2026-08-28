@@ -28,7 +28,9 @@ def impact_test_files(node_id: str) -> set[str]:
     if out.returncode != 0:
         raise RuntimeError(out.stderr[:500])
     data = json.loads(out.stdout)
-    return {it["file"] for it in data["items"] if it["level"] == "tests"}
+    all_files = {it["file"] for it in data["items"] if it["level"] == "tests"}
+    call_files = {it["file"] for it in data["items"] if it["level"] == "tests" and it.get("channel") == "call"}
+    return all_files, call_files
 
 def run_full_vitest() -> set[str] | None:
     """全量测试，返回失败测试文件相对路径集合；报告解析失败返回 None。"""
@@ -80,7 +82,7 @@ def main():
         if done >= N_MUTANTS:
             break
         abs_file = REPO / rel_file
-        predicted = impact_test_files(node_id)
+        predicted, predicted_call = impact_test_files(node_id)
         original = mutate(abs_file, line)
         if original is None:
             continue
@@ -96,16 +98,22 @@ def main():
             done += 1
             continue
         missed = truth - predicted
+        missed_call = truth - predicted_call
         precision = len(truth) / len(predicted) if predicted else 0.0
+        precision_call = len(truth & predicted_call) / len(predicted_call) if predicted_call else 0.0
         results.append({
             "node": node_id,
             "truth": len(truth), "predicted": len(predicted),
             "missed": sorted(missed), "recall_hit": not missed,
             "precision": round(precision, 3),
+            "predicted_call": len(predicted_call),
+            "call_recall_hit": not missed_call,
+            "precision_call": round(precision_call, 3),
         })
         done += 1
         status = "HIT" if not missed else f"MISS {sorted(missed)}"
-        print(f"[{done}/{N_MUTANTS}] {node_id}: truth={len(truth)} predicted={len(predicted)} {status}")
+        call_status = "call:HIT" if not missed_call else f"call:MISS({len(missed_call)})"
+        print(f"[{done}/{N_MUTANTS}] {node_id}: truth={len(truth)} pred={len(predicted)}/{len(predicted_call)} {status} {call_status}")
 
     killed = [r for r in results if "recall_hit" in r]
     hits = sum(1 for r in killed if r["recall_hit"])
@@ -114,6 +122,9 @@ def main():
     if killed:
         print(f"recall: {hits}/{len(killed)} = {hits/len(killed):.0%}")
         print(f"mean precision: {sum(r['precision'] for r in killed)/len(killed):.3f}")
+        call_hits = sum(1 for r in killed if r.get("call_recall_hit"))
+        print(f"call-channel recall: {call_hits}/{len(killed)} = {call_hits/len(killed):.0%}")
+        print(f"call-channel mean precision: {sum(r.get('precision_call', 0) for r in killed)/len(killed):.3f}")
     Path("/tmp/mutation_results.json").write_text(json.dumps(results, indent=2))
     print("details: /tmp/mutation_results.json")
 

@@ -1,0 +1,160 @@
+[
+  {
+    "node": "packages/server/src/unstable-core-do-not-import/utils.ts#isObject",
+    "truth": 138,
+    "predicted": 230,
+    "missed": [],
+    "recall_hit": true,
+    "precision": 0.6,
+    "predicted_call": 118,
+    "call_recall_hit": false,
+    "precision_call": 0.78
+  },
+  {
+    "node": "packages/server/src/unstable-core-do-not-import/stream/utils/createDeferred.ts#createDeferred",
+    "truth": 44,
+    "predicted": 228,
+    "missed": [],
+    "recall_hit": true,
+    "precision": 0.193,
+    "predicted_call": 36,
+    "call_recall_hit": false,
+    "precision_call": 0.444
+  },
+  {
+    "node": "packages/tanstack-react-query/src/internals/Context.tsx#createTRPCContext",
+    "truth": 11,
+    "predicted": 49,
+    "missed": [],
+    "recall_hit": true,
+    "precision": 0.224,
+    "predicted_call": 21,
+    "call_recall_hit": false,
+    "precision_call": 0.429
+  },
+  {
+    "node": "packages/server/src/unstable-core-do-not-import/initTRPC.ts#TRPCBuilder.context",
+    "truth": 31,
+    "predicted": 227,
+    "missed": [],
+    "recall_hit": true,
+    "precision": 0.137,
+    "predicted_call": 30,
+    "call_recall_hit": false,
+    "precision_call": 1.0
+  },
+  {
+    "node": "packages/server/src/adapters/node-http/writeResponse.ts#writeResponse",
+    "truth": 110,
+    "predicted": 172,
+    "missed": [],
+    "recall_hit": true,
+    "precision": 0.64,
+    "predicted_call": 33,
+    "call_recall_hit": false,
+    "precision_call": 0.758
+  },
+  {
+    "node": "packages/next/src/withTRPC.tsx#withTRPC",
+    "truth": 4,
+    "predicted": 10,
+    "missed": [],
+    "recall_hit": true,
+    "precision": 0.4,
+    "predicted_call": 3,
+    "call_recall_hit": false,
+    "precision_call": 1.0
+  },
+  {
+    "node": "packages/client/src/TRPCClientError.ts#isTRPCClientError",
+    "truth": 34,
+    "predicted": 164,
+    "missed": [],
+    "recall_hit": true,
+    "precision": 0.207,
+    "predicted_call": 47,
+    "call_recall_hit": false,
+    "precision_call": 0.362
+  },
+  {
+    "node": "packages/server/src/adapters/ws.ts#applyWSSHandler",
+    "truth": 97,
+    "predicted": 162,
+    "missed": [],
+    "recall_hit": true,
+    "precision": 0.599,
+    "predicted_call": 112,
+    "call_recall_hit": false,
+    "precision_call": 0.857
+  },
+  {
+    "node": "packages/openapi/src/schemaExtraction.ts#extractZodDescriptions",
+    "note": "mutant not killed (dead code path or type-only)"
+  },
+  {
+    "node": "packages/tanstack-react-query/src/internals/utils.ts#readQueryKey",
+    "truth": 8,
+    "predicted": 50,
+    "missed": [],
+    "recall_hit": true,
+    "precision": 0.16,
+    "predicted_call": 20,
+    "call_recall_hit": false,
+    "precision_call": 0.3
+  },
+  {
+    "node": "packages/server/src/unstable-core-do-not-import/stream/tracked.ts#isTrackedEnvelope",
+    "truth": 13,
+    "predicted": 227,
+    "missed": [],
+    "recall_hit": true,
+    "precision": 0.057,
+    "predicted_call": 31,
+    "call_recall_hit": false,
+    "precision_call": 0.226
+  },
+  {
+    "node": "packages/next/src/app-dir/server.ts#experimental_createServerActionHandler",
+    "truth": 1,
+    "predicted": 4,
+    "missed": [],
+    "recall_hit": true,
+    "precision": 0.25,
+    "predicted_call": 1,
+    "call_recall_hit": true,
+    "precision_call": 1.0
+  },
+  {
+    "node": "packages/server/src/unstable-core-do-not-import/http/formDataToObject.ts#formDataToObject",
+    "truth": 3,
+    "predicted": 228,
+    "missed": [],
+    "recall_hit": true,
+    "precision": 0.013,
+    "predicted_call": 3,
+    "call_recall_hit": false,
+    "precision_call": 0.667
+  },
+  {
+    "node": "packages/server/src/observable/operators.ts#distinctUntilChanged",
+    "truth": 1,
+    "predicted": 227,
+    "missed": [],
+    "recall_hit": true,
+    "precision": 0.004,
+    "predicted_call": 1,
+    "call_recall_hit": true,
+    "precision_call": 1.0
+  },
+  {
+    "node": "packages/server/src/observable/operators.ts#distinctUntilDeepChanged",
+    "truth": 2,
+    "predicted": 227,
+    "missed": [],
+    "recall_hit": true,
+    "precision": 0.009,
+    "predicted_call": 1,
+    "call_recall_hit": false,
+    "precision_call": 1.0
+  }
+]

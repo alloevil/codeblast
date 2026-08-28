@@ -34,6 +34,11 @@ bun run <codeblast>/src/impact-cli.ts /tmp/graph.db "<符号名或文件路径>"
 
 返回 `items[]`：每项含 `level`（direct=直接调用方 / indirect=传递可达 / tests=受影响测试）、
 `hops`、`confidence`（exact / conservative）、`via_file:via_line`（依赖发生的证据行）。
+每项还有 `channel`：`call`=全程函数级调用链可达（高置信,实测精确率 ~0.70）；
+`file`=途经 import/re-export 文件级边（保守补充）。
+**禁止只取 call 通道当完整清单**——实测砍掉 file 通道召回率从 100% 跌到 14%
+（测试常在匿名回调里调用被测函数,函数级链路断裂）。正确用法：
+call 通道 = 优先人工检查的核心项；完整清单 = 该跑的测试全集。
 `tests` 级按测试路径惯例判定（`*.test.*`/`*.spec.*`/`tests/` 目录/`test_*.py`），
 测试目录下的 fixture 也会被保守计入——按去重后的文件数估算测试成本。
 

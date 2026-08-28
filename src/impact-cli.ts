@@ -43,14 +43,20 @@ if (process.argv.includes("--json")) {
 
 const byLevel = { direct: 0, indirect: 0, tests: 0 };
 for (const it of result.items) byLevel[it.level]++;
+const callItems = result.items.filter((it) => it.channel === "call");
+const fileCount = result.items.length - callItems.length;
 
 console.log(`target: ${result.target}`);
 console.log(`impact: ${result.items.length} nodes (direct=${byLevel.direct} indirect=${byLevel.indirect} tests=${byLevel.tests})${result.truncated ? " [TRUNCATED — 广泛影响，建议全量测试]" : ""}`);
+console.log(`  ├─ 调用链可达（高置信）: ${callItems.length}`);
+console.log(`  └─ 经 import/re-export 可达（保守补充,勿跳过）: ${fileCount}`);
 if (result.blind_spot_count > 0) console.log(`blind spots in target file: ${result.blind_spot_count} (影响可能被低估)`);
 console.log(`query: ${ms}ms\n`);
 
-for (const it of result.items.slice(0, 40)) {
+const ordered = [...callItems, ...result.items.filter((it) => it.channel !== "call")];
+for (const it of ordered.slice(0, 40)) {
   const conf = it.confidence === "conservative" ? " ~" : "";
-  console.log(`  [${it.level}${conf}] ${it.id}  (${it.kind}, ${it.hops} hop, via ${it.via_file}:${it.via_line})`);
+  const ch = it.channel === "file" ? " ·import" : "";
+  console.log(`  [${it.level}${conf}${ch}] ${it.id}  (${it.kind}, ${it.hops} hop, via ${it.via_file}:${it.via_line})`);
 }
-if (result.items.length > 40) console.log(`  ... and ${result.items.length - 40} more`);
+if (ordered.length > 40) console.log(`  ... and ${ordered.length - 40} more`);
