@@ -10,6 +10,7 @@
 </p>
 
 **codeblast 把仓库解析成一份确定性代码图谱，回答改代码前后最贵的三个问题：**
+> 🔗 **[在线交互演示](https://alloevil.github.io/codeblast/)** — tRPC / Tabby / sgp 的实时架构图,点开即可三层下钻
 
 | | 问题 | 命令 |
 |---|---|---|
