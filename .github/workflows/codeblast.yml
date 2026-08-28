@@ -1,0 +1,44 @@
+# codeblast PR 结构分析 — 复制到目标仓库 .github/workflows/codeblast.yml
+#
+# 行为：每个 PR 对比 base↔head 的代码图谱；有结构变化则评论（更新同一条评论），
+#       无结构变化保持静默。
+name: codeblast
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+      - name: Install repo deps
+        run: |
+          if [ -f pnpm-lock.yaml ]; then corepack enable && pnpm install --ignore-scripts
+          elif [ -f bun.lock ] || [ -f bun.lockb ]; then bun install
+          elif [ -f package-lock.json ]; then npm ci --ignore-scripts
+          fi
+      - name: Get codeblast
+        run: git clone --depth 1 https://github.com/alloevil/codeblast /tmp/codeblast && cd /tmp/codeblast && bun install
+      - name: Analyze
+        id: analyze
+        run: |
+          set +e
+          bun run /tmp/codeblast/src/pr-comment.ts "$GITHUB_WORKSPACE" \
+            "${{ github.event.pull_request.base.sha }}" \
+            "${{ github.event.pull_request.head.sha }}" \
+            --repo-url "${{ github.server_url }}/${{ github.repository }}" > /tmp/comment.md
+          echo "has_comment=$([ -s /tmp/comment.md ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+      - name: Comment
+        if: steps.analyze.outputs.has_comment == 'true'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: codeblast
+          path: /tmp/comment.md
