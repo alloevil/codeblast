@@ -26,15 +26,17 @@ const dbPath = dbFlag >= 0 ? args[dbFlag + 1] : path.join(process.cwd(), "graph.
 function discoverTsconfigs(repoRoot: string): string[] {
   const found: string[] = [];
   const rootConfig = path.join(repoRoot, "tsconfig.json");
-  const wsDirs = ["packages", "apps", "libs"]
-    .map((d) => path.join(repoRoot, d))
-    .filter((d) => fs.existsSync(d) && fs.statSync(d).isDirectory());
-  for (const wsDir of wsDirs) {
-    for (const entry of fs.readdirSync(wsDir)) {
-      const candidate = path.join(wsDir, entry, "tsconfig.json");
-      if (fs.existsSync(candidate)) found.push(candidate);
+  // 递归找全部 tsconfig.json（深度 ≤3，跳过噪音目录）——覆盖 packages/* 与 tabby-*/ 这类平铺布局
+  const SKIP: Record<string, true> = { node_modules: true, ".git": true, dist: true, build: true, coverage: true };
+  const walk = (dir: string, depth: number): void => {
+    if (depth > 3) return;
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, entry.name);
+      if (entry.isDirectory() && !SKIP[entry.name] && !entry.name.startsWith(".")) walk(p, depth + 1);
+      else if (entry.name === "tsconfig.json" && p !== rootConfig) found.push(p);
     }
-  }
+  };
+  walk(repoRoot, 1);
   // 非 monorepo（无 workspace 包）时才用根 tsconfig，避免文件被双重索引
   if (found.length === 0 && fs.existsSync(rootConfig)) found.push(rootConfig);
   return found;

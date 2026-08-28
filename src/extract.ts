@@ -18,11 +18,47 @@ export interface ExtractResult {
 }
 
 const TEST_FILE_RE = /\.(test|spec)\.[cm]?[jt]sx?$|__tests__\//;
+/** node_modules 未链接时，把 workspace 包名映射注入 compilerOptions.paths，让 checker 可跨包解析。 */
+function injectWorkspacePaths(base: ts.CompilerOptions, pkgs: Map<string, string>, rootDir: string): ts.CompilerOptions {
+  if (pkgs.size === 0) return base;
+  const options: ts.CompilerOptions = { ...base, baseUrl: base.baseUrl ?? rootDir, paths: { ...base.paths } };
+  for (const [name, dir] of pkgs) {
+    const rel = path.relative(options.baseUrl!, dir) || ".";
+    options.paths![name] ??= [`${rel}/src/index.ts`, `${rel}/index.ts`];
+    options.paths![`${name}/*`] ??= [`${rel}/src/*`, `${rel}/*`];
+  }
+  return options;
+}
+/** 仓库一级/二级目录里的 package.json → name 映射（yarn/pnpm 未链接 workspace 时的解析兜底）。 */
+function discoverWorkspacePackages(repoRoot: string): Map<string, string> {
+  const out = new Map<string, string>();
+  const tryAdd = (dir: string) => {
+    const pj = path.join(dir, "package.json");
+    if (!fs.existsSync(pj)) return;
+    try {
+      const parsed: unknown = JSON.parse(fs.readFileSync(pj, "utf8"));
+      if (parsed && typeof parsed === "object" && "name" in parsed && typeof parsed.name === "string") {
+        out.set(parsed.name, dir);
+      }
+    } catch { /* 坏 package.json 忽略 */ }
+  };
+  for (const entry of fs.readdirSync(repoRoot, { withFileTypes: true })) {
+    if (!entry.isDirectory() || entry.name === "node_modules" || entry.name.startsWith(".")) continue;
+    const dir = path.join(repoRoot, entry.name);
+    tryAdd(dir);
+    for (const sub of ["packages", "apps", "libs"].includes(entry.name) ? fs.readdirSync(dir, { withFileTypes: true }) : []) {
+      if (sub.isDirectory()) tryAdd(path.join(dir, sub.name));
+    }
+  }
+  return out;
+}
 
 export class Extractor {
   private program: ts.Program;
   private checker: ts.TypeChecker;
   private rootDir: string;
+  /** workspace 包名 → 包内入口目录（node_modules 未链接时的兜底解析）。 */
+  private workspacePkgs = new Map<string, string>();
   /** interface/abstract 声明 id → 实现节点 id 列表（保守全连用），全仓收集。 */
   private implementers = new Map<string, string[]>();
 
@@ -31,7 +67,9 @@ export class Extractor {
     if (configFile.error) throw new Error(ts.flattenDiagnosticMessageText(configFile.error.messageText, "\n"));
     const parsed = ts.parseJsonConfigFileContent(configFile.config, ts.sys, path.dirname(tsconfigPath));
     this.rootDir = repoRoot ?? path.dirname(path.resolve(tsconfigPath));
-    this.program = ts.createProgram({ rootNames: parsed.fileNames, options: parsed.options });
+    this.workspacePkgs = discoverWorkspacePackages(this.rootDir);
+    const options = injectWorkspacePaths(parsed.options, this.workspacePkgs, this.rootDir);
+    this.program = ts.createProgram({ rootNames: parsed.fileNames, options });
     this.checker = this.program.getTypeChecker();
   }
   /** 兜底：给未被任何 tsconfig include 的散落文件（如 tsconfig 外的 test）建 program。 */
@@ -40,8 +78,9 @@ export class Extractor {
     const parsed = ts.parseJsonConfigFileContent(configFile.config ?? {}, ts.sys, path.dirname(baseTsconfigPath));
     const ex = Object.create(Extractor.prototype) as Extractor;
     ex.rootDir = repoRoot;
+    ex.workspacePkgs = discoverWorkspacePackages(repoRoot);
     ex.implementers = new Map();
-    ex.program = ts.createProgram({ rootNames: fileNames, options: parsed.options });
+    ex.program = ts.createProgram({ rootNames: fileNames, options: injectWorkspacePaths(parsed.options, ex.workspacePkgs, repoRoot) });
     ex.checker = ex.program.getTypeChecker();
     return ex;
   }
@@ -63,7 +102,8 @@ export class Extractor {
         if (ts.isClassDeclaration(node) && node.heritageClauses) {
           for (const clause of node.heritageClauses) {
             for (const typeNode of clause.types) {
-              const sym = this.checker.getSymbolAtLocation(typeNode.expression);
+              let sym = this.checker.getSymbolAtLocation(typeNode.expression);
+              if (sym && sym.flags & ts.SymbolFlags.Alias) sym = this.checker.getAliasedSymbol(sym);
               const decl = sym?.declarations?.[0];
               if (!decl) continue;
               const parentId = this.nodeIdOfDecl(decl);
@@ -156,7 +196,8 @@ export class Extractor {
           for (const clause of node.heritageClauses) {
             const ek = clause.token === ts.SyntaxKind.ImplementsKeyword ? "implements" : "extends";
             for (const t of clause.types) {
-              const sym = this.checker.getSymbolAtLocation(t.expression);
+              let sym = this.checker.getSymbolAtLocation(t.expression);
+              if (sym && sym.flags & ts.SymbolFlags.Alias) sym = this.checker.getAliasedSymbol(sym);
               const decl = sym?.declarations?.[0];
               const dst = decl ? this.nodeIdOfDecl(decl) : undefined;
               if (dst) edges.push({ src: id, dst, kind: ek, file: relPath, line: lineOf(clause), confidence: "exact", src_file: relPath });
@@ -288,7 +329,23 @@ export class Extractor {
   private resolveModule(specifier: string, fromFile: string): string | undefined {
     const r = ts.resolveModuleName(specifier, fromFile, this.program.getCompilerOptions(), ts.sys);
     let resolved = r.resolvedModule?.resolvedFileName;
-    if (!resolved) return undefined;
+    if (!resolved) {
+      // workspace 包名兜底：yarn 未链接时 tsc 解析不到,查包名映射
+      const pkgName = specifier.startsWith("@") ? specifier.split("/").slice(0, 2).join("/") : specifier.split("/")[0];
+      const pkgDir = this.workspacePkgs.get(pkgName);
+      if (!pkgDir) return undefined;
+      const sub = specifier.slice(pkgName.length).replace(/^\//, "");
+      for (const cand of [
+        path.join(pkgDir, sub || "index.ts"),
+        path.join(pkgDir, sub, "index.ts"),
+        path.join(pkgDir, "src", sub || "index.ts"),
+        path.join(pkgDir, "src", sub, "index.ts"),
+        path.join(pkgDir, sub + ".ts"),
+      ]) {
+        if (fs.existsSync(cand)) return cand;
+      }
+      return undefined;
+    }
     // pnpm workspace: 包名导入经 node_modules 符号链接指回仓内 → realpath 穿透后再判断
     if (resolved.includes("node_modules")) {
       try {
