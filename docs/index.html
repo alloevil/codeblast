@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>codeblast · Live Architecture Maps</title>
+<style>
+  :root { --bg:#0d1117; --panel:#161b22; --border:#30363d; --fg:#e6edf3; --dim:#8b949e;
+          --accent:#58a6ff; --red:#f85149; --ok:#3fb950; }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: var(--bg); color: var(--fg); font: 15px/1.6 -apple-system,"Segoe UI",sans-serif; padding: 48px 24px; }
+  main { max-width: 860px; margin: 0 auto; }
+  .eyebrow { font-family: ui-monospace,Menlo,monospace; color: var(--dim); letter-spacing: 2px; font-size: 13px; }
+  h1 { font-size: 40px; margin: 8px 0 4px; } h1 .b { color: var(--red); }
+  .sub { color: var(--dim); margin-bottom: 36px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 16px; }
+  a.card { display: block; background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+           padding: 20px; text-decoration: none; color: var(--fg); transition: border-color .15s; }
+  a.card:hover { border-color: var(--accent); }
+  .card h2 { font-size: 18px; margin-bottom: 6px; } .card h2 .ext { color: var(--dim); font-weight: normal; font-size: 13px; }
+  .card p { color: var(--dim); font-size: 13.5px; }
+  .card .stats { font-family: ui-monospace,Menlo,monospace; font-size: 12.5px; color: var(--accent); margin-top: 10px; }
+  .foot { margin-top: 40px; color: var(--dim); font-size: 13px; }
+  .foot a { color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <div class="eyebrow">DETERMINISTIC CODE GRAPH · LIVE DEMOS</div>
+  <h1>code<span class="b">blast</span> · 架构图实例</h1>
+  <p class="sub">以下全部由静态分析自动生成 · 点开即交互：模块 → 文件 → 符号三层下钻，符号点击跳源码行,红色虚线 = 循环依赖</p>
+
+  <div class="grid">
+    <a class="card" href="trpc-arch.html">
+      <h2>tRPC <span class="ext">TypeScript monorepo · 8 包</span></h2>
+      <p>验收基准仓：变异测试 28/28 召回 100% 在此仓完成。client → server 单向依赖、packages/server 为绝对核心。</p>
+      <div class="stats">950 files · 5.9k nodes · 17k edges</div>
+    </a>
+    <a class="card" href="tabby-arch.html">
+      <h2>Tabby <span class="ext">Angular/Electron · 60k★ 终端</span></h2>
+      <p>"脏仓"基准：平铺 workspace + 装饰器 + 动态注入。tabby-core 插件架构一图可见,盲区按 dyn/unres 分类标注。</p>
+      <div class="stats">284 files · 2.2k nodes · 5.5k edges</div>
+    </a>
+    <a class="card" href="sgp-arch.html">
+      <h2>sgp <span class="ext">Python · 求解服务</span></h2>
+      <p>Python 文件级支持（方案 B）：LLM 中文模块命名 + 循环依赖检出（sgp_utils ⇄ solver_transfer）。</p>
+      <div class="stats">71 files · 376 nodes · 536 edges</div>
+    </a>
+    <a class="card" href="codeblast-arch.html">
+      <h2>codeblast <span class="ext">自举</span></h2>
+      <p>用自己分析自己：引擎 + 三投影 + 出口的结构。</p>
+      <div class="stats">~15 files · self-hosted</div>
+    </a>
+  </div>
+
+  <p class="foot">
+    每条边带 file:line 证据 · 静态可分析范围内零漏报（变异测试验收） ·
+    <a href="https://github.com/alloevil/codeblast">GitHub 仓库</a> ·
+    <a href="https://github.com/alloevil/codeblast/blob/main/intent.md">方案与验收记录</a>
+  </p>
+</main>
+</body>
+</html>
