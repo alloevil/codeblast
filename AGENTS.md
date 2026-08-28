@@ -32,6 +32,7 @@ eval/               验收 harness（变异测试、PR 回放）——改核心�
 
 - **改 extract/impact/graph-diff 后必须跑验收**：
   ```bash
+  # 基准环境不存在时（/tmp 被清）先重建: bash eval/setup_benchmarks.sh
   # 快速回归（tRPC 图已存在时 ~1min）
   bun run src/cli.ts /tmp/trpc --db /tmp/trpc-full.db          # 应大量 skip
   bun run src/impact-cli.ts /tmp/trpc-full.db "createBuilder" --json | head -c 500

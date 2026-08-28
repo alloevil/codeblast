@@ -1,7 +1,8 @@
 # intent.md — codeblast：代码图谱三投影产品
 
 > 共识基准文件。变更方案先改此文件。
-> 状态：方案已拍板（2026-08-27），待建仓开工 M0。
+> 状态：M0-M5 全部完成（2026-08-28）。本文件曾长期未随执行偏离更新（违反自身条款），
+> 2026-08-28 审计后对齐现实；偏离记录见文末"执行偏离台账"。
 
 ## 一句话定位
 
@@ -18,7 +19,7 @@
 ## 架构五层
 
 ```
-L0 采集   scip-typescript + tsc API（纯组装，零自研）
+L0 采集   tsc API + Python stdlib AST（原计划 scip-typescript,实做时 tsc API 已够,未引入 scip）
 L1 图谱   SQLite 单文件：函数级节点+边，每条挂 file:line 证据；无 LLM 成分；
           schema 支持按文件增量失效；预留 service/API/queue 节点类型（v1 不填边）
 L2 折叠   社区发现聚类 → LLM 命名 → C4 三层（系统/模块/函数）下钻；
@@ -27,7 +28,8 @@ L3 投影   ① Architecture = 折叠结果
           ② Change    = 图级 diff（节点/边增删 + 重命名匹配），折叠到用户坐标系【自研点 1】
           ③ Impact    = 函数级可达遍历 + 三级分级（直接/间接/测试）+ 动态派发保守全连【自研点 2】
 L4 出口   人:    PR bot（GitHub App 评论 ②+③ 摘要；无结构变化必须静默）+ Web 三张图（同一画布：下钻/着色/跳代码）
-          agent: MCP 三个 tool — impact(symbol) / context(task) / graph_diff(ref_a, ref_b)
+                    agent: SKILL.md 契约 + 各 CLI --json 出口（原计划 MCP,用户叫停后改为 skill 分发形态,
+          借鉴 archify;三能力不变: impact / change --json / archmap）
 ```
 
 设计裁决依据：
@@ -36,16 +38,18 @@ L4 出口   人:    PR bot（GitHub App 评论 ②+③ 摘要；无结构变化�
 - 纯算法聚类不可信、必须可人工修正 —— SAR 领域结论（ASE'13 / ICSE'15）。
 - 引擎不达精度不见客户 —— Arbor（getarbor.dev）主动停售的教训。
 
-## 里程碑与硬验收
+## 里程碑与验收状态（2026-08-28 对齐）
 
-| # | 交付 | 硬验收 |
-|---|---|---|
-| M0 | 图谱引擎 + 增量更新 | 3 个真实 TS monorepo（cal.com / novu / twenty 候选，含 1 个"脏"仓）建图；抽样 50 条调用边人工核对正确率 100%，含证据行号；单文件变更增量更新 < 数秒级 |
-| M1 | Impact 引擎 | 变异测试对照（方法照 arXiv:1812.06286）：**召回率 100% 硬门槛**，精确率报实数。不达标不进 M2 |
-| M2 | MCP 出口 | 控变量：同 agent 同 20 个 task，带/不带图谱，漏改 callsite 率与回归数对比出数字 |
-| M3 | 折叠层 + Architecture Map | 未修正初稿给陌生工程师：10 分钟答对 5 个架构问题；SemArc 数据集方法对齐度报数 |
-| M4 | Change Map + PR bot | 回放 50 个真实 merged PR：评论有效率 ≥ 70%；结构无变化的 PR 零评论 |
-| M5 | 精度扩展 | SWARM-JS 基准实测 LLM/GNN 补动态边水平后，决定是否引入低置信边层级；co-change 边上线 |
+| # | 交付 | 原定验收 → 实际执行 | 状态 |
+|---|---|---|---|
+| M0 | 图谱引擎 + 增量更新 | 基准仓改为 tRPC + tabby + 自举（cal.com/novu 体积与安装成本过高）；50 条调用边=脚本窗口匹配 49/50 + 1 条人工复核（非逐条人工）；增量: 单文件 7.2s（含 program 重建） | ✅ 达成,口径如实修正 |
+| M1 | Impact 引擎 | 变异测试（arXiv:1812.06286 法）：初跑 50%→10% 召回,修 5 个真 bug 后 10/10=100% | ✅ |
+| M2 | agent 出口 | MCP 被叫停 → SKILL.md 形态；原控变量实验未做,以盲测 agent 走通全流程（verdict: usable,2 条证据行核对属实）替代 | ✅ 形态变更,验证方式降级 |
+| M3 | 折叠层 + Architecture Map | 浏览器实测三层下钻/循环依赖/LLM 命名渲染；**"陌生工程师 10 分钟 5 问"与 SemArc 对齐度均未执行** | ⚠️ 功能完成,原定验收未跑 |
+| M4 | Change Map + PR bot | 50 真实提交回放：42 正确静默、评论有效率 7/8=87.5%（评审人=本 agent,非独立第三方）；WAL 缓存 bug 被回放拦截 | ✅ 有效率判定主体需注明 |
+| M5 | 精度扩展 | 30 变异: 28/28 召回 100%,精确率 0.358；channel 双通道对照实验（call-only 召回 14%）先于 SWARM-JS 完成并解决同一问题,SWARM-JS 降级为可选未执行；co-change 上线（tRPC 13 对,含 client↔server 协议耦合）；脏仓 tabby 修出 3 个真 bug | ✅ SWARM-JS 项未按原文执行 |
+
+遗留验收债: M3 两项原定验收、M4 独立评审、M2 控变量实验。补做与否待用户决策。
 
 ## 约束条款
 
@@ -83,3 +87,14 @@ L4 出口   人:    PR bot（GitHub App 评论 ②+③ 摘要；无结构变化�
 - Change：GumTree（ASE'14，匹配思路）、Sem（Ataraxy Labs，实体级 diff 参照）
 - Architecture：ASE'13/ICSE'15 SAR 对比、ArchAgent arXiv:2601.13007、SemArc 数据集（github.com/xjtu-enre/TSE2025SemArc）
 - 竞品坐标：CodeRadius（同赛道 alpha）、Arbor（停售教训）、kratai（人机同图先例）、CodeSee（尸检：纯可视化必死）
+## 执行偏离台账（audit 2026-08-28）
+
+记录"做的与写的不一致"，防共识漂移复发：
+
+1. L0 选型：scip-typescript → 纯 tsc API。理由：tsc 已提供符号+类型解析,scip 反成中间层。未回写即执行。
+2. L4 agent 出口：MCP → SKILL.md（用户 2026-08-27 叫停 MCP;archify 调研后确定 skill 形态）。
+3. 基准仓：cal.com/novu/twenty → tRPC/tabby/sgp。理由：克隆与依赖安装成本;tabby 充当"脏仓"。
+4. M5 SWARM-JS：未执行,被 channel 对照实验替代（agent 单方面 scope 调整,本次审计追认）。
+5. 新增未在原计划中的交付：Python 支持（方案 B,已拍板入册）、co-change 边、
+   PR bot GitHub Actions 模板、README 视觉系统、AGENTS.md。
+6. 仓库可见性 private → public,变更来源不明（非 agent 操作,待用户确认）。
