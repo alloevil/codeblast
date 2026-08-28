@@ -12,6 +12,7 @@
  */
 import { Database } from "bun:sqlite";
 import { loadOverlay, applyOverlay } from "./overlay";
+import dagre from "@dagrejs/dagre";
 
 const [dbPath] = process.argv.slice(2);
 const outFlag = process.argv.indexOf("--out");
@@ -96,8 +97,73 @@ for (const key of modEdges.keys()) {
   }
 }
 
+// ---- dagre 布局预计算（构建期跑,坐标嵌入;前端零布局依赖）
+// 注: 首选 elkjs,但其 GWT worker 在 bun 下模块导出为空,弃用;dagre 纯 JS 分层布局等效。
+
+interface LaidNode { id: string; x: number; y: number; w: number; h: number }
+interface LaidEdge { src: string; dst: string; points: { x: number; y: number }[] }
+interface Layout { nodes: LaidNode[]; edges: LaidEdge[]; width: number; height: number }
+
+async function layoutGraph(
+  nodes: { id: string; label: string }[],
+  edges: { src: string; dst: string }[],
+): Promise<Layout> {
+  const g = new dagre.graphlib.Graph();
+  g.setGraph({ rankdir: "TB", nodesep: 36, ranksep: 70, marginx: 24, marginy: 24 });
+  g.setDefaultEdgeLabel(() => ({}));
+  for (const n of nodes) {
+    g.setNode(n.id, { width: Math.max(150, n.label.length * 8.5 + 56), height: 58 });
+  }
+  for (const e of edges) {
+    if (e.src !== e.dst) g.setEdge(e.src, e.dst);
+  }
+  dagre.layout(g);
+  const gd = g.graph();
+  return {
+    width: gd.width ?? 900,
+    height: gd.height ?? 600,
+    nodes: g.nodes().map((id) => {
+      const n = g.node(id);
+      return { id, x: n.x - n.width / 2, y: n.y - n.height / 2, w: n.width, h: n.height };
+    }),
+    edges: edges.filter((e) => e.src !== e.dst).map((e) => ({
+      src: e.src, dst: e.dst,
+      points: g.edge(e.src, e.dst)?.points ?? [],
+    })),
+  };
+}
+
+const layouts: Record<string, Layout> = {};
+// 模块层
+layouts["__modules__"] = await layoutGraph(
+  [...modules.keys()].map((m) => {
+    const o = overlay.modules[m] as { name?: string } | undefined;
+    return { id: m, label: o?.name ?? m };
+  }),
+  [...modEdges.keys()].map((key) => {
+    const [src, dst] = key.split("→");
+    return { src, dst };
+  }),
+);
+// 各模块的文件层（文件数 ≤ 80 才预计算,超大模块回退网格）
+for (const [mod] of modules) {
+  const fs = fileInfos.filter((f) => f.module === mod);
+  if (fs.length === 0 || fs.length > 80) continue;
+  const inSet = new Set(fs.map((f) => f.path));
+  const agg = new Map<string, { src: string; dst: string }>();
+  for (const e of importRows) {
+    if (inSet.has(e.src) && inSet.has(e.dst) && e.src !== e.dst) {
+      agg.set(`${e.src}→${e.dst}`, { src: e.src, dst: e.dst });
+    }
+  }
+  layouts[mod] = await layoutGraph(
+    fs.map((f) => ({ id: f.path, label: f.path.split("/").pop() ?? f.path })),
+    [...agg.values()],
+  );
+}
 const data = {
   generated: new Date().toISOString().slice(0, 16).replace("T", " "),
+  layouts,
   repoUrl: repoUrl ?? null,
   modules: [...modules.entries()].map(([name, v]) => ({ name, ...v })).sort((a, b) => b.files - a.files),
   moduleMeta: Object.fromEntries(
@@ -135,7 +201,17 @@ const html = `<!DOCTYPE html>
   .node text { fill: var(--fg); font-size: 13px; pointer-events: none; }
   .node .meta { fill: var(--dim); font-size: 11px; }
   .edge { stroke: #58a6ff55; fill: none; marker-end: url(#arrow); }
+  .edge.mid { stroke-width: 1.8; stroke: #58a6ff77; }
+  .edge.heavy { stroke-width: 2.6; stroke: #58a6ffaa; }
   .edge.cyclic { stroke: var(--warn); stroke-dasharray: 5 3; }
+  .edge.hi { stroke: #d29922 !important; stroke-width: 2.6; stroke-opacity: 1; }
+  .edge.dim { stroke-opacity: 0.1; }
+  .node.dimn { opacity: 0.3; }
+  #graph { position: relative; }
+  #toolbar { position: absolute; top: 12px; right: 12px; }
+  #toolbar button { background: var(--panel); color: var(--fg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 6px 14px; cursor: pointer; font-size: 13px; }
+  #toolbar button:hover { border-color: var(--accent); }
   .edge-label { fill: var(--dim); font-size: 10px; }
   .crumb { color: var(--accent); cursor: pointer; }
   #side h2 { font-size: 14px; margin: 8px 0; }
@@ -153,7 +229,8 @@ const html = `<!DOCTYPE html>
   <div id="graph"><svg id="svg"><defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M 0 0 L 10 5 L 0 10 z" fill="#58a6ff88"/></marker>
-  </defs><g id="viewport"></g></svg></div>
+  </defs><g id="viewport"></g></svg>
+  <div id="toolbar"><button onclick="exportPNG()">导出 PNG</button></div></div>
 </div>
 <div id="side"><h2>概览</h2><div id="detail"></div>
   <p class="hint">点击模块下钻到文件层;点击文件查看符号。红色虚线 = 循环依赖。滚轮缩放,拖拽平移。</p>
@@ -192,41 +269,119 @@ function layout(nodes, edges) {
 
 function esc(s) { return s.replace(/&/g,"&amp;").replace(/</g,"&lt;"); }
 
-function render() {
-  let nodes, edges;
+function buildView() {
   if (view.scope === "modules") {
-    nodes = DATA.modules.map(m => ({ id: m.name, label: (DATA.moduleMeta[m.name]?.display ?? m.name), meta: m.files + " files" + blindLabel(m.blind), test: m.name === "tests" }));
-    edges = DATA.modEdges.map(e => ({ src: e.src, dst: e.dst, w: e.w, cyclic: e.cyclic }));
-    crumbs.innerHTML = "模块层 · " + nodes.length + " modules";
-  } else {
-    const fs = DATA.files.filter(f => f.module === view.module);
-    const inSet = new Set(fs.map(f => f.path));
-    nodes = fs.map(f => ({ id: f.path, label: f.path.split("/").pop(), meta: f.symbols.length + " symbols" + blindLabel(f.blind), test: false }));
-    const agg = {};
-    DATA.fileEdges.forEach(e => {
-      if (inSet.has(e.src) && inSet.has(e.dst)) { const k = e.src+"→"+e.dst; agg[k] = (agg[k]||0)+1; }
-    });
-    edges = Object.entries(agg).map(([k,w]) => { const [src,dst] = k.split("→"); return { src, dst, w, cyclic: false }; });
-    crumbs.innerHTML = '<span class="crumb" onclick="goHome()">模块层</span> › ' + esc(view.module) + " · " + nodes.length + " files";
+    return {
+      key: "__modules__",
+      nodes: DATA.modules.map(m => ({ id: m.name, label: (DATA.moduleMeta[m.name]?.display ?? m.name), meta: m.files + " files" + blindLabel(m.blind), test: m.name === "tests" })),
+      edges: DATA.modEdges.map(e => ({ src: e.src, dst: e.dst, w: e.w, cyclic: e.cyclic })),
+      crumb: "模块层 · " + DATA.modules.length + " modules",
+    };
   }
-  layout(nodes, edges);
-  const pos = {}; nodes.forEach(n => pos[n.id] = n);
-  let g = "";
-  edges.forEach(e => {
-    const a = pos[e.src], b = pos[e.dst]; if (!a || !b) return;
-    const mx = (a.x+b.x)/2, my = (a.y+b.y)/2 - 20;
-    g += '<path class="edge'+(e.cyclic?" cyclic":"")+'" d="M'+a.x+','+a.y+' Q'+mx+','+my+' '+b.x+','+b.y+'"/>';
-    g += '<text class="edge-label" x="'+mx+'" y="'+(my+4)+'">'+e.w+'</text>';
+  const fs = DATA.files.filter(f => f.module === view.module);
+  const inSet = new Set(fs.map(f => f.path));
+  const agg = {};
+  DATA.fileEdges.forEach(e => {
+    if (inSet.has(e.src) && inSet.has(e.dst) && e.src !== e.dst) { const k = e.src+"→"+e.dst; agg[k] = (agg[k]||0)+1; }
   });
-  nodes.forEach(n => {
-    const w = Math.max(120, n.label.length*8 + 30);
-    g += '<g class="node'+(n.test?" test":"")+'" onclick="clickNode(\\''+n.id.replace(/'/g,"\\\\'")+'\\')">'
-       + '<rect x="'+(n.x-w/2)+'" y="'+(n.y-24)+'" width="'+w+'" height="48"/>'
-       + '<text x="'+n.x+'" y="'+(n.y-4)+'" text-anchor="middle">'+esc(n.label)+'</text>'
-       + '<text class="meta" x="'+n.x+'" y="'+(n.y+14)+'" text-anchor="middle">'+esc(n.meta)+'</text></g>';
+  return {
+    key: view.module,
+    nodes: fs.map(f => ({ id: f.path, label: f.path.split("/").pop(), meta: f.symbols.length + " symbols" + blindLabel(f.blind), test: false })),
+    edges: Object.entries(agg).map(([k,w]) => { const [src,dst] = k.split("→"); return { src, dst, w, cyclic: false }; }),
+    crumb: '<span class="crumb" onclick="goHome()">模块层</span> › ' + esc(view.module) + " · " + fs.length + " files",
+  };
+}
+
+function gridFallback(nodes) {
+  const cols = Math.ceil(Math.sqrt(nodes.length));
+  const out = {};
+  nodes.forEach((n, i) => {
+    out[n.id] = { x: 40 + (i % cols) * 240, y: 40 + Math.floor(i / cols) * 100, w: 210, h: 58 };
+  });
+  return out;
+}
+
+function render() {
+  const v = buildView();
+  crumbs.innerHTML = v.crumb;
+  const laid = DATA.layouts[v.key];
+  const pos = {};
+  const laidEdges = {};
+  if (laid) {
+    laid.nodes.forEach(n => pos[n.id] = n);
+    laid.edges.forEach(e => { laidEdges[e.src + "→" + e.dst] = e.points; });
+  } else {
+    Object.assign(pos, gridFallback(v.nodes));
+  }
+  const cx = id => pos[id] ? pos[id].x + pos[id].w / 2 : 0;
+  const cy = id => pos[id] ? pos[id].y + pos[id].h / 2 : 0;
+
+  let g = "";
+  v.edges.forEach(e => {
+    if (!pos[e.src] || !pos[e.dst]) return;
+    const pts = laidEdges[e.src + "→" + e.dst];
+    let d;
+    if (pts && pts.length >= 2) {
+      d = "M" + pts[0].x + "," + pts[0].y + pts.slice(1).map(p => " L" + p.x + "," + p.y).join("");
+    } else {
+      const mx = (cx(e.src) + cx(e.dst)) / 2, my = (cy(e.src) + cy(e.dst)) / 2 - 20;
+      d = "M" + cx(e.src) + "," + cy(e.src) + " Q" + mx + "," + my + " " + cx(e.dst) + "," + cy(e.dst);
+    }
+    const wClass = e.w >= 10 ? " heavy" : e.w >= 4 ? " mid" : "";
+    const eid = (e.src + "→" + e.dst).replace(/["'<>&]/g, "_");
+    g += '<path class="edge' + (e.cyclic ? " cyclic" : "") + wClass + '" data-src="' + esc(e.src) + '" data-dst="' + esc(e.dst) + '" d="' + d + '"/>';
+    if (pts && pts.length >= 2) {
+      const mp = pts[Math.floor(pts.length / 2)];
+      g += '<text class="edge-label" x="' + (mp.x + 4) + '" y="' + (mp.y - 4) + '">' + e.w + '</text>';
+    }
+  });
+  v.nodes.forEach(n => {
+    const p = pos[n.id];
+    if (!p) return;
+    g += '<g class="node' + (n.test ? " test" : "") + '" data-id="' + esc(n.id) + '" onclick="clickNode(\\'' + n.id.replace(/'/g, "\\\\'") + '\\')" onmouseenter="hl(\\'' + n.id.replace(/'/g, "\\\\'") + '\\',1)" onmouseleave="hl(\\'' + n.id.replace(/'/g, "\\\\'") + '\\',0)">'
+       + '<rect x="' + p.x + '" y="' + p.y + '" width="' + p.w + '" height="' + p.h + '"/>'
+       + '<text x="' + (p.x + p.w / 2) + '" y="' + (p.y + 24) + '" text-anchor="middle">' + esc(n.label) + '</text>'
+       + '<text class="meta" x="' + (p.x + p.w / 2) + '" y="' + (p.y + 42) + '" text-anchor="middle">' + esc(n.meta) + '</text></g>';
   });
   vp.innerHTML = g;
+  if (laid) fitView(laid.width, laid.height);
   renderSide();
+}
+
+function hl(id, on) {
+  document.querySelectorAll(".edge").forEach(p => {
+    const hit = p.dataset.src === id || p.dataset.dst === id;
+    p.classList.toggle("hi", on && hit);
+    p.classList.toggle("dim", on && !hit);
+  });
+  document.querySelectorAll(".node").forEach(nd => nd.classList.toggle("dimn", on && nd.dataset.id !== id && ![...document.querySelectorAll('.edge.hi')].some(e => e.dataset.src === nd.dataset.id || e.dataset.dst === nd.dataset.id)));
+}
+
+function fitView(w, h) {
+  const vw = svg.clientWidth || 900, vh = svg.clientHeight || 600;
+  scale = Math.min(1, (vw - 60) / w, (vh - 60) / h);
+  tx = (vw - w * scale) / 2;
+  ty = 24;
+  apply();
+}
+
+function exportPNG() {
+  const clone = svg.cloneNode(true);
+  const style = document.createElement("style");
+  style.textContent = document.querySelector("style").textContent;
+  clone.insertBefore(style, clone.firstChild);
+  const xml = new XMLSerializer().serializeToString(clone);
+  const img = new Image();
+  img.onload = () => {
+    const c = document.createElement("canvas");
+    c.width = svg.clientWidth * 2; c.height = svg.clientHeight * 2;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#0d1117"; ctx.fillRect(0, 0, c.width, c.height);
+    ctx.scale(2, 2); ctx.drawImage(img, 0, 0);
+    const a = document.createElement("a");
+    a.download = "codeblast-arch.png"; a.href = c.toDataURL("image/png"); a.click();
+  };
+  img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(xml);
 }
 
 function renderSide() {
