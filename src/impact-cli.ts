@@ -51,6 +51,10 @@ console.log(`impact: ${result.items.length} nodes (direct=${byLevel.direct} indi
 console.log(`  ├─ 调用链可达（高置信）: ${callItems.length}`);
 console.log(`  └─ 经 import/re-export 可达（保守补充,勿跳过）: ${fileCount}`);
 if (result.blind_spot_count > 0) console.log(`blind spots in target file: ${result.blind_spot_count} (影响可能被低估)`);
+if (result.co_change_hints.length > 0) {
+  console.log(`历史耦合提示（静态图无边,但常一起改）:`);
+  for (const h of result.co_change_hints) console.log(`  ~ ${h.file} (${h.co_commits} 次共同提交, ${h.evidence})`);
+}
 console.log(`query: ${ms}ms\n`);
 
 const ordered = [...callItems, ...result.items.filter((it) => it.channel !== "call")];

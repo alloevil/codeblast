@@ -35,6 +35,8 @@ export interface ImpactResult {
   items: ImpactItem[];
   truncated: boolean;
   blind_spot_count: number; // 目标文件的盲区数量：诚实提示
+  /** 历史耦合提示：与目标文件频繁一起变更、但静态图上无边的文件（不进传递遍历） */
+  co_change_hints: { file: string; co_commits: number; evidence: string }[];
 }
 
 const IMPACT_EDGE_KINDS = ["calls", "implements", "extends", "imports", "contains"] as const;
@@ -157,6 +159,11 @@ export function impact(db: Database, targetId: string, maxNodes = 500): ImpactRe
     "SELECT COUNT(*) c FROM blind_spots WHERE file = ? AND reason NOT LIKE 'test-global%'",
   ).get(targetRow.file) as { c: number }).c;
 
+  const coChange = (db.prepare(
+    "SELECT dst, line, src_file FROM edges WHERE kind = 'co_change' AND src = ? ORDER BY line DESC LIMIT 10",
+  ).all(targetRow.file) as { dst: string; line: number; src_file: string }[])
+    .map((r) => ({ file: r.dst, co_commits: r.line, evidence: r.src_file }));
+
   items.sort((a, b) => a.hops - b.hops || a.id.localeCompare(b.id));
-  return { target: targetId, items, truncated, blind_spot_count: blindCount };
+  return { target: targetId, items, truncated, blind_spot_count: blindCount, co_change_hints: coChange };
 }

@@ -41,6 +41,10 @@ bun run <codeblast>/src/impact-cli.ts /tmp/graph.db "<符号名或文件路径>"
 call 通道 = 优先人工检查的核心项；完整清单 = 该跑的测试全集。
 `tests` 级按测试路径惯例判定（`*.test.*`/`*.spec.*`/`tests/` 目录/`test_*.py`），
 测试目录下的 fixture 也会被保守计入——按去重后的文件数估算测试成本。
+顶层 `co_change_hints[]`：与目标文件历史上频繁一起变更、但静态图上无边的文件
+（如 HTTP 协议两端、配置与消费者）。属提示不属影响集——转述给用户时说
+"历史上常一起改,建议顺带检查"，不说"会被影响"。
+需先跑 `bun run <codeblast>/src/cochange.ts <repo> <graph.db>` 挖掘（可选步骤）。
 
 **Agent 用法**：改一个导出符号前先查 impact，把 direct 列表作为必须检查的
 callsite 清单，把 tests 列表作为改完必须跑的测试集。`truncated=true` 表示

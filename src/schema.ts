@@ -32,6 +32,7 @@ export const EDGE_KINDS = [
   "imports", //   file → file
   "contains", //  file → function/class（下钻用）
   "tests", //     test → function（测试覆盖映射）
+  "co_change", // file ↔ file：git 历史耦合（cochange.ts 产出；line=共同提交数，src_file=证据 sha）
 ] as const;
 export type EdgeKind = (typeof EDGE_KINDS)[number];
 
