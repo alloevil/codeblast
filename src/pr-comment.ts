@@ -59,7 +59,40 @@ const dbB = new Database(dbPathB, { readonly: true });
 const diff = graphDiff(dbA, dbB);
 const total = diff.nodesAdded.length + diff.nodesRemoved.length + diff.renamed.length + diff.edgesAdded.length + diff.edgesRemoved.length;
 
-if (total === 0) process.exit(0); // 静默：无结构变化不评论
+// 函数体内改动检测（独立评审 2c5b6a8 案例：行为修复因符号粒度盲区被静默）
+// git diff hunk 行号 → dbB 中所属函数节点；排除已计入结构变化的符号与测试文件
+const TEST_RE = /\.(test|spec)\.[cm]?[jt]sx?$|__tests__\/|(^|\/)tests?\//;
+interface BodyChange { id: string; name: string; kind: string; file: string; line: number }
+const structuralIds = new Set([...diff.nodesAdded.map((n) => n.id), ...diff.renamed.map((r) => `${r.file}#${r.to}`)]);
+const bodyChanged: BodyChange[] = [];
+{
+  const diffOut = Bun.spawnSync(
+    ["git", "diff", "--unified=0", baseSha, headSha, "--", "*.ts", "*.tsx"],
+    { cwd: repo, maxBuffer: 64 * 1024 * 1024 },
+  ).stdout.toString();
+  const findFn = dbB.prepare(
+    "SELECT id, name, kind, file, line FROM nodes WHERE file = ? AND kind IN ('function','method') AND line <= ? AND end_line >= ? ORDER BY (end_line - line) ASC LIMIT 1",
+  );
+  let curFile = "";
+  const seen = new Set<string>();
+  for (const ln of diffOut.split("\n")) {
+    const fm = ln.match(/^\+\+\+ b\/(.+)$/);
+    if (fm) { curFile = fm[1]; continue; }
+    const hm = ln.match(/^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/);
+    if (!hm || !curFile || TEST_RE.test(curFile)) continue;
+    const start = Number(hm[1]);
+    const count = hm[2] === undefined ? 1 : Number(hm[2]);
+    for (const probe of [start, start + Math.max(0, count - 1)]) {
+      const fn = findFn.get(curFile, probe, probe) as BodyChange | null;
+      if (fn && !structuralIds.has(fn.id) && !seen.has(fn.id)) {
+        seen.add(fn.id);
+        bodyChanged.push(fn);
+      }
+    }
+  }
+}
+
+if (total === 0 && bodyChanged.length === 0) process.exit(0); // 静默：既无结构变化也无源码函数体改动
 
 const link = (file: string, line: number): string =>
   repoUrl ? `[${file}:${line}](${repoUrl}/blob/${headSha}/${file}#L${line})` : `${file}:${line}`;
@@ -99,16 +132,39 @@ const impactRows: string[] = [];
 for (const n of diff.nodesAdded.slice(0, 15)) {
   try {
     const r = impact(dbB, n.id, 2000);
-    const tests = r.items.filter((i) => i.level === "tests").length;
-    impactRows.push(`| \`${n.name}\` | ${n.kind} | ${r.items.length}${r.truncated ? "+" : ""} | ${tests} |`);
+    // 只报 call 通道——文件级均值会给全新符号报出虚假的巨大半径（独立评审 3e0e979 案例）
+    const callItems = r.items.filter((i) => i.channel === "call");
+    const tests = callItems.filter((i) => i.level === "tests").length;
+    impactRows.push(`| \`${n.name}\` | ${n.kind} | ${callItems.length} | ${tests} |`);
     if (tests === 0 && n.kind !== "interface") uncovered.push(`- \`${n.name}\` （${link(n.file, n.line)}）`);
   } catch { /* 模块级 id 无节点 */ }
 }
 if (impactRows.length > 0) {
-  lines.push(`### 新增符号的影响半径`, ``, `| 符号 | 类型 | 影响节点 | 受影响测试 |`, `|---|---|---|---|`, ...impactRows, ``);
+  lines.push(`### 新增符号的影响半径（仅调用链可达,不含 import 粗粒度）`, ``, `| 符号 | 类型 | 调用链影响 | 受影响测试 |`, `|---|---|---|---|`, ...impactRows, ``);
 }
 if (uncovered.length > 0) {
   lines.push(`### ⚠️ 无测试覆盖的新增符号`, ``, ...uncovered, ``);
+}
+// 函数体内改动：结构不变但行为可能变——按既有函数的调用链影响排序,评审重点
+if (bodyChanged.length > 0) {
+  const rows: string[] = [];
+  for (const fn of bodyChanged.slice(0, 12)) {
+    try {
+      const r = impact(dbB, fn.id, 2000);
+      const callItems = r.items.filter((i) => i.channel === "call");
+      const tests = callItems.filter((i) => i.level === "tests").length;
+      rows.push(`| \`${fn.name}\` | ${callItems.length} | ${tests} | ${link(fn.file, fn.line)} |`);
+    } catch { /* 节点缺失跳过 */ }
+  }
+  if (rows.length > 0) {
+    lines.push(`### 函数体内改动（结构未变,行为可能变）`, ``, `| 函数 | 调用链影响 | 受影响测试 | 位置 |`, `|---|---|---|---|`, ...rows, ``);
+  }
+  if (bodyChanged.length > 12) lines.push(`…及另外 ${bodyChanged.length - 12} 个函数`, ``);
+}
+
+// 标题行在有函数体改动时也成立
+if (total === 0 && bodyChanged.length > 0) {
+  lines[2] = `**无结构变更**,但有 ${bodyChanged.length} 个函数体内改动（见下）`;
 }
 
 lines.push(`<sub>由 [codeblast](https://github.com/alloevil/codeblast) 生成 · 每条结论基于静态分析,含证据链接 · 动态调用盲区不在本报告内</sub>`);
