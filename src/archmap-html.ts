@@ -220,7 +220,9 @@ const html = `<!DOCTYPE html>
   .edge { stroke: #58a6ff55; fill: none; marker-end: url(#arrow); }
   .edge.mid { stroke-width: 1.8; stroke: #58a6ff77; }
   .edge.heavy { stroke-width: 2.6; stroke: #58a6ffaa; }
-  .edge.cyclic { stroke: var(--warn); stroke-dasharray: 5 3; }
+  .edge.cyclic { stroke: var(--warn); stroke-dasharray: 5 3; stroke-width: 2;
+    animation: cycflow 1.2s linear infinite; }
+  @keyframes cycflow { to { stroke-dashoffset: -16; } }
   .edge.hi { stroke: #d29922 !important; stroke-width: 2.6; stroke-opacity: 1; }
   .edge.dim { stroke-opacity: 0.1; }
   .edge.faint { stroke-opacity: 0.06; }
@@ -251,7 +253,7 @@ const html = `<!DOCTYPE html>
       <stop offset="0" stop-color="#1c2430"/><stop offset="1" stop-color="#151b23"/>
     </linearGradient>
   </defs><g id="viewport"></g></svg>
-  <div id="toolbar"><button onclick="exportPNG()">导出 PNG</button></div></div>
+  <div id="toolbar"><button onclick="toggleFit()">适配 / 100%</button> <button onclick="exportPNG()">导出 PNG</button></div></div>
 </div>
 <div id="side"><h2>概览</h2><div id="detail"></div>
   <p class="hint">点击模块下钻到文件层;点击文件查看符号。红色虚线 = 循环依赖。滚轮缩放,拖拽平移。</p>
@@ -337,6 +339,15 @@ function render() {
   }
   const cx = id => pos[id] ? pos[id].x + pos[id].w / 2 : 0;
   const cy = id => pos[id] ? pos[id].y + pos[id].h / 2 : 0;
+  // 端点裁剪:让边精确落在矩形边界而非停在节点内部/中心
+  function clipToRect(p, target, box) {
+    const cx0 = box.x + box.w / 2, cy0 = box.y + box.h / 2;
+    const dx = target.x - cx0, dy = target.y - cy0;
+    if (!dx && !dy) return { x: cx0, y: cy0 };
+    const sx = (box.w / 2 + 4) / Math.abs(dx || 1e-9), sy = (box.h / 2 + 4) / Math.abs(dy || 1e-9);
+    const t = Math.min(sx, sy);
+    return { x: cx0 + dx * t, y: cy0 + dy * t };
+  }
 
   let g = "";
   v.edges.forEach(e => {
@@ -344,7 +355,16 @@ function render() {
     const pts = laidEdges[e.src + "→" + e.dst];
     let d;
     if (pts && pts.length >= 2) {
-      d = "M" + pts[0].x + "," + pts[0].y + pts.slice(1).map(p => " L" + p.x + "," + p.y).join("");
+      const p2 = pts.slice();
+      p2[0] = clipToRect(p2[0], p2[1], pos[e.src]);
+      p2[p2.length - 1] = clipToRect(p2[p2.length - 1], p2[p2.length - 2], pos[e.dst]);
+      // 平滑折线:Catmull-Rom 风格的二次样条串
+      d = "M" + p2[0].x + "," + p2[0].y;
+      for (let i = 1; i < p2.length - 1; i++) {
+        const mx = (p2[i].x + p2[i + 1].x) / 2, my = (p2[i].y + p2[i + 1].y) / 2;
+        d += " Q" + p2[i].x + "," + p2[i].y + " " + mx + "," + my;
+      }
+      d += " L" + p2[p2.length - 1].x + "," + p2[p2.length - 1].y;
     } else {
       const mx = (cx(e.src) + cx(e.dst)) / 2, my = (cy(e.src) + cy(e.dst)) / 2 - 20;
       d = "M" + cx(e.src) + "," + cy(e.src) + " Q" + mx + "," + my + " " + cx(e.dst) + "," + cy(e.dst);
@@ -367,8 +387,8 @@ function render() {
        + '<text class="meta" x="' + (p.x + p.w / 2) + '" y="' + (p.y + 42) + '" text-anchor="middle">' + esc(n.meta) + '</text></g>';
   });
   vp.innerHTML = g;
-  if (laid) fitView(laid.width, laid.height);
-  else { scale = 1; tx = 0; ty = 0; apply(); }
+  if (laid) { lastDims = { w: laid.width, h: laid.height }; fitView(laid.width, laid.height); }
+  else { scale = 1; tx = 0; ty = 0; apply(); lastDims = null; }
   renderSide();
 }
 
@@ -383,9 +403,19 @@ function hl(id, on) {
 
 function fitView(w, h) {
   const vw = svg.clientWidth || 900, vh = svg.clientHeight || 600;
-  scale = Math.min(1, (vw - 60) / w, (vh - 60) / h);
-  tx = (vw - w * scale) / 2;
+  // 初始缩放下限 0.72:超大图允许滚动而不是把标签缩到不可读
+  scale = Math.max(0.55, Math.min(1, (vw - 60) / w, (vh - 60) / h));
+  tx = Math.max(12, (vw - w * scale) / 2);
   ty = 24;
+  apply();
+}
+let lastDims = null;
+function toggleFit() {
+  if (!lastDims) return;
+  const vw = svg.clientWidth || 900, vh = svg.clientHeight || 600;
+  const fitScale = Math.min(1, (vw - 60) / lastDims.w, (vh - 60) / lastDims.h);
+  if (Math.abs(scale - fitScale) < 0.01) { scale = 1; tx = 12; ty = 24; }
+  else { scale = fitScale; tx = Math.max(12, (vw - lastDims.w * scale) / 2); ty = 24; }
   apply();
 }
 
