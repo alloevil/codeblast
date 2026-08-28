@@ -125,8 +125,10 @@ def main():
         call_hits = sum(1 for r in killed if r.get("call_recall_hit"))
         print(f"call-channel recall: {call_hits}/{len(killed)} = {call_hits/len(killed):.0%}")
         print(f"call-channel mean precision: {sum(r.get('precision_call', 0) for r in killed)/len(killed):.3f}")
-    Path("/tmp/mutation_results.json").write_text(json.dumps(results, indent=2))
-    print("details: /tmp/mutation_results.json")
+        from datetime import date
+    out_name = f"/tmp/mutation-{date.today()}-{REPO.name}-n{len(results)}.json"
+Path(out_name).write_text(json.dumps(results, indent=2))
+    print(f"details: {out_name}")
 
 if __name__ == "__main__":
     main()

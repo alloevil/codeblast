@@ -52,6 +52,19 @@ export function graphDiff(dbA: Database, dbB: Database): GraphDiff {
       usedRemoved.add(r.id);
     }
   }
+  // 跨文件重命名（文件被改名/移动）：同名 + 同 kind + 行号邻近 → 视为文件级 rename,非增删
+  // （独立评审 492bacf 案例：22 个纯文件改名被误报为 +67/-60 符号）
+  for (const r of rawRemoved) {
+    if (usedRemoved.has(r.id)) continue;
+    const candidate = rawAdded.find(
+      (a) => !usedAdded.has(a.id) && a.name === r.name && a.kind === r.kind && Math.abs(a.line - r.line) <= 5,
+    );
+    if (candidate) {
+      renamed.push({ from: `${r.file}#${r.name}`, to: `${candidate.file}#${candidate.name}`, file: candidate.file, kind: r.kind });
+      usedAdded.add(candidate.id);
+      usedRemoved.add(r.id);
+    }
+  }
 
   const eq = `SELECT src, dst, kind, file, line FROM edges WHERE kind IN ${STRUCTURAL_EDGE_KINDS}`;
   const edgeKey = (e: EdgeRow) => `${e.src}\u0000${e.dst}\u0000${e.kind}`;
