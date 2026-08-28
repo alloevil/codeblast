@@ -105,14 +105,15 @@ interface LaidEdge { src: string; dst: string; points: { x: number; y: number }[
 interface Layout { nodes: LaidNode[]; edges: LaidEdge[]; width: number; height: number }
 
 async function layoutGraph(
-  nodes: { id: string; label: string }[],
+  nodes: { id: string; label: string; meta?: string }[],
   edges: { src: string; dst: string }[],
 ): Promise<Layout> {
   const g = new dagre.graphlib.Graph();
   g.setGraph({ rankdir: "TB", nodesep: 36, ranksep: 70, marginx: 24, marginy: 24 });
   g.setDefaultEdgeLabel(() => ({}));
   for (const n of nodes) {
-    g.setNode(n.id, { width: Math.max(150, n.label.length * 8.5 + 56), height: 58 });
+    // 宽度同时容纳标题(13.5px 粗体 ~8.5px/字符)与 meta 行(11px mono ~6.8px/字符)
+    g.setNode(n.id, { width: Math.max(150, n.label.length * 8.5 + 56, (n.meta ?? "").length * 6.8 + 40), height: 58 });
   }
   for (const e of edges) {
     if (e.src !== e.dst) g.setEdge(e.src, e.dst);
@@ -138,7 +139,11 @@ const layouts: Record<string, Layout> = {};
 layouts["__modules__"] = await layoutGraph(
   [...modules.keys()].map((m) => {
     const o = overlay.modules[m] as { name?: string } | undefined;
-    return { id: m, label: o?.name ?? m };
+    const b = modules.get(m)!.blind;
+    const metaParts = [`${modules.get(m)!.files} files`];
+    if (b.dyn > 0) metaParts.push(`${b.dyn} dyn`);
+    if (b.unres > 0) metaParts.push(`${b.unres} unres`);
+    return { id: m, label: o?.name ?? m, meta: metaParts.join(" · ") };
   }),
   [...modEdges.keys()].map((key) => {
     const [src, dst] = key.split("→");
@@ -157,7 +162,11 @@ for (const [mod] of modules) {
     }
   }
   layouts[mod] = await layoutGraph(
-    fs.map((f) => ({ id: f.path, label: f.path.split("/").pop() ?? f.path })),
+    fs.map((f) => ({
+      id: f.path,
+      label: f.path.split("/").pop() ?? f.path,
+      meta: `${f.symbols.length} symbols`,
+    })),
     [...agg.values()],
   );
 }
@@ -191,21 +200,30 @@ const html = `<!DOCTYPE html>
           --accent:#58a6ff; --warn:#f85149; --ok:#3fb950; }
   * { box-sizing: border-box; margin: 0; }
   body { background: var(--bg); color: var(--fg); font: 14px/1.5 -apple-system, "Segoe UI", sans-serif; display: flex; height: 100vh; }
+  #graph { background:
+    radial-gradient(ellipse 80% 60% at 50% -10%, #1f6feb14, transparent),
+    radial-gradient(#30363d55 1px, transparent 1px);
+    background-size: auto, 26px 26px; }
   #graph { flex: 1; position: relative; overflow: hidden; }
   svg { width: 100%; height: 100%; cursor: grab; }
   #side { width: 380px; border-left: 1px solid var(--border); background: var(--panel); overflow-y: auto; padding: 16px; }
   h1 { font-size: 15px; padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--panel); }
   h1 small { color: var(--dim); font-weight: normal; margin-left: 8px; }
-  .node rect { fill: #1f6feb22; stroke: var(--accent); stroke-width: 1.2; rx: 8; cursor: pointer; }
-  .node.test rect { stroke: var(--ok); fill: #3fb95011; }
-  .node text { fill: var(--fg); font-size: 13px; pointer-events: none; }
-  .node .meta { fill: var(--dim); font-size: 11px; }
+  .node rect { fill: url(#nodeFill); stroke: var(--c, var(--accent)); stroke-width: 1.4; rx: 10;
+    cursor: pointer; filter: drop-shadow(0 2px 6px #010409aa); transition: filter .15s; }
+  .node:hover rect { filter: drop-shadow(0 0 8px var(--c, var(--accent))) drop-shadow(0 2px 6px #010409aa); }
+  .node .accentbar { fill: var(--c, var(--accent)); rx: 2; pointer-events: none; }
+  .node.test { --c: var(--ok); }
+  .node.cyc { --c: var(--warn); }
+  .node text { fill: var(--fg); font-size: 13.5px; font-weight: 600; pointer-events: none; }
+  .node .meta { fill: var(--dim); font-size: 11px; font-weight: 400; font-family: ui-monospace, Menlo, monospace; }
   .edge { stroke: #58a6ff55; fill: none; marker-end: url(#arrow); }
   .edge.mid { stroke-width: 1.8; stroke: #58a6ff77; }
   .edge.heavy { stroke-width: 2.6; stroke: #58a6ffaa; }
   .edge.cyclic { stroke: var(--warn); stroke-dasharray: 5 3; }
   .edge.hi { stroke: #d29922 !important; stroke-width: 2.6; stroke-opacity: 1; }
   .edge.dim { stroke-opacity: 0.1; }
+  .edge.faint { stroke-opacity: 0.06; }
   .node.dimn { opacity: 0.3; }
   #graph { position: relative; }
   #toolbar { position: absolute; top: 12px; right: 12px; }
@@ -229,6 +247,9 @@ const html = `<!DOCTYPE html>
   <div id="graph"><svg id="svg"><defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M 0 0 L 10 5 L 0 10 z" fill="#58a6ff88"/></marker>
+    <linearGradient id="nodeFill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1c2430"/><stop offset="1" stop-color="#151b23"/>
+    </linearGradient>
   </defs><g id="viewport"></g></svg>
   <div id="toolbar"><button onclick="exportPNG()">导出 PNG</button></div></div>
 </div>
@@ -273,7 +294,7 @@ function buildView() {
   if (view.scope === "modules") {
     return {
       key: "__modules__",
-      nodes: DATA.modules.map(m => ({ id: m.name, label: (DATA.moduleMeta[m.name]?.display ?? m.name), meta: m.files + " files" + blindLabel(m.blind), test: m.name === "tests" })),
+      nodes: DATA.modules.map(m => ({ id: m.name, label: (DATA.moduleMeta[m.name]?.display ?? m.name), meta: m.files + " files" + blindLabel(m.blind), test: m.name === "tests", cyc: DATA.modEdges.some(e => e.cyclic && (e.src === m.name || e.dst === m.name)) })),
       edges: DATA.modEdges.map(e => ({ src: e.src, dst: e.dst, w: e.w, cyclic: e.cyclic })),
       crumb: "模块层 · " + DATA.modules.length + " modules",
     };
@@ -305,6 +326,7 @@ function render() {
   const v = buildView();
   crumbs.innerHTML = v.crumb;
   const laid = DATA.layouts[v.key];
+  const fallback = !laid;
   const pos = {};
   const laidEdges = {};
   if (laid) {
@@ -329,7 +351,7 @@ function render() {
     }
     const wClass = e.w >= 10 ? " heavy" : e.w >= 4 ? " mid" : "";
     const eid = (e.src + "→" + e.dst).replace(/["'<>&]/g, "_");
-    g += '<path class="edge' + (e.cyclic ? " cyclic" : "") + wClass + '" data-src="' + esc(e.src) + '" data-dst="' + esc(e.dst) + '" d="' + d + '"/>';
+    g += '<path class="edge' + (e.cyclic ? " cyclic" : "") + wClass + (fallback ? " faint" : "") + '" data-src="' + esc(e.src) + '" data-dst="' + esc(e.dst) + '" d="' + d + '"/>';
     if (pts && pts.length >= 2) {
       const mp = pts[Math.floor(pts.length / 2)];
       g += '<text class="edge-label" x="' + (mp.x + 4) + '" y="' + (mp.y - 4) + '">' + e.w + '</text>';
@@ -338,13 +360,15 @@ function render() {
   v.nodes.forEach(n => {
     const p = pos[n.id];
     if (!p) return;
-    g += '<g class="node' + (n.test ? " test" : "") + '" data-id="' + esc(n.id) + '" onclick="clickNode(\\'' + n.id.replace(/'/g, "\\\\'") + '\\')" onmouseenter="hl(\\'' + n.id.replace(/'/g, "\\\\'") + '\\',1)" onmouseleave="hl(\\'' + n.id.replace(/'/g, "\\\\'") + '\\',0)">'
+    g += '<g class="node' + (n.test ? " test" : "") + (n.cyc ? " cyc" : "") + '" data-id="' + esc(n.id) + '" onclick="clickNode(\\'' + n.id.replace(/'/g, "\\\\'") + '\\')" onmouseenter="hl(\\'' + n.id.replace(/'/g, "\\\\'") + '\\',1)" onmouseleave="hl(\\'' + n.id.replace(/'/g, "\\\\'") + '\\',0)">'
        + '<rect x="' + p.x + '" y="' + p.y + '" width="' + p.w + '" height="' + p.h + '"/>'
+       + '<rect class="accentbar" x="' + p.x + '" y="' + (p.y + 10) + '" width="3.5" height="' + (p.h - 20) + '"/>'
        + '<text x="' + (p.x + p.w / 2) + '" y="' + (p.y + 24) + '" text-anchor="middle">' + esc(n.label) + '</text>'
        + '<text class="meta" x="' + (p.x + p.w / 2) + '" y="' + (p.y + 42) + '" text-anchor="middle">' + esc(n.meta) + '</text></g>';
   });
   vp.innerHTML = g;
   if (laid) fitView(laid.width, laid.height);
+  else { scale = 1; tx = 0; ty = 0; apply(); }
   renderSide();
 }
 
