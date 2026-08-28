@@ -57,7 +57,7 @@ await buildGraphAt(headSha, dbPathB);
 const dbA = new Database(dbPathA, { readonly: true });
 const dbB = new Database(dbPathB, { readonly: true });
 const diff = graphDiff(dbA, dbB);
-const total = diff.nodesAdded.length + diff.nodesRemoved.length + diff.renamed.length + diff.edgesAdded.length + diff.edgesRemoved.length + diff.visibilityChanged.length;
+const total = diff.nodesAdded.length + diff.nodesRemoved.length + diff.renamed.length + diff.edgesAdded.length + diff.edgesRemoved.length + diff.visibilityChanged.length + diff.signatureChanged.length;
 
 // 函数体内改动检测（独立评审 2c5b6a8 案例：行为修复因符号粒度盲区被静默）
 // git diff hunk 行号 → dbB 中所属函数节点；排除已计入结构变化的符号与测试文件
@@ -131,6 +131,20 @@ if (diff.visibilityChanged.length > 0) {
   }
   lines.push(``);
 }
+// 导出函数签名变更 = API 面变化（终验盲区: 加参被记"结构未变"）
+if (diff.signatureChanged.length > 0) {
+  lines.push(`### 签名变更（公共 API 面）`, ``);
+  for (const s of diff.signatureChanged.slice(0, 10)) {
+    // 从首个差异点展示,避免公共前缀截断导致 from/to 显示相同
+    let d = 0;
+    while (d < s.from.length && d < s.to.length && s.from[d] === s.to[d]) d++;
+    const ctx = Math.max(0, d - 15);
+    const fromView = (ctx > 0 ? "…" : "") + s.from.slice(ctx, ctx + 70) + (s.from.length > ctx + 70 ? "…" : "");
+    const toView = (ctx > 0 ? "…" : "") + s.to.slice(ctx, ctx + 70) + (s.to.length > ctx + 70 ? "…" : "");
+    lines.push(`- \`${s.name}\`: \`(${fromView})\` → \`(${toView})\` （${link(s.file, s.line)}）`);
+  }
+  lines.push(``);
+}
 
 if (diff.edgesAdded.length > 0) {
   lines.push(`### 新增依赖`, ``);
@@ -172,7 +186,9 @@ if (uncovered.length > 0) {
 // 独立评审 e870051/e472df1 案例：零增量复述与空洞 headline 比沉默更差。
 // 函数体改动只有在"有调用链影响"时才算有信息量——0 影响 0 测试的孤立脚本改动 diff 一眼可见。
 // 但在大 diff 里定位"唯一的行为变更"本身就是价值（e39a654: 15k 行提交里揪出 generateEntrypoints）。
-// 启发式: 0 影响的函数体改动只在【小 diff】(<40 变更行,一眼可读)时视为零信息。
+// 终验修订: 辅助区（www/scripts/docs/examples）的 0 影响改动一律零信息（3 条终验 noise 全是此类）;
+// 核心区 0 影响改动仅在大 diff（≥40 行,导航价值）时有信号。
+const AUX_RE = /^(www|docs|examples)\//; // 终验 3 条 noise 全在 www/;scripts/ 含构建入口(e39a654)不降权
 const diffLineCount = Bun.spawnSync(
   ["git", "diff", "--numstat", baseSha, headSha],
   { cwd: repo, maxBuffer: 16 * 1024 * 1024 },
@@ -180,19 +196,23 @@ const diffLineCount = Bun.spawnSync(
   const m = l.match(/^(\d+)\t(\d+)\t/);
   return sum + (m ? Number(m[1]) + Number(m[2]) : 0);
 }, 0);
-let bodySignal = bodyChanged.length;
-if (diffLineCount < 40) {
-  let impactful = 0;
-  for (const fn of bodyChanged) {
-    try {
-      const r = impact(dbB, fn.id, 2000);
-      if (r.items.some((i) => i.channel === "call")) impactful++;
-    } catch { /* 节点缺失跳过 */ }
-  }
-  bodySignal = impactful;
+let bodySignal = 0;
+for (const fn of bodyChanged) {
+  let hasImpact = false;
+  try {
+    const r = impact(dbB, fn.id, 2000);
+    hasImpact = r.items.some((i) => i.channel === "call");
+  } catch { /* 节点缺失跳过 */ }
+  if (hasImpact) bodySignal++;                                        // 有调用链影响 → 永远有信号
+  else if (!AUX_RE.test(fn.file) && diffLineCount >= 40) bodySignal++; // 核心区大 diff 导航价值
 }
-const namedSections = diff.edgesAdded.length + impactRows.length + bodySignal + diff.renamed.length + diff.visibilityChanged.length;
-if (namedSections === 0) process.exit(0);
+// 具名结构变化同样按核心区计数——辅助区新组件/依赖边（4217a73: www 106 行）无评审价值
+const coreNamed = diff.edgesAdded.filter((e) => !AUX_RE.test(e.file)).length
+  + prodNodesAdded.filter((n) => !AUX_RE.test(n.file)).length
+  + diff.renamed.filter((r) => !AUX_RE.test(r.file)).length
+  + diff.visibilityChanged.filter((v) => !AUX_RE.test(v.file)).length
+  + diff.signatureChanged.filter((s) => !AUX_RE.test(s.file)).length;
+if (coreNamed + bodySignal === 0) process.exit(0);
 // 函数体内改动：结构不变但行为可能变——按既有函数的调用链影响排序,评审重点
 if (bodyChanged.length > 0) {
   const rows: string[] = [];

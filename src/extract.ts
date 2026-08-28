@@ -137,7 +137,7 @@ export class Extractor {
     nodes.push({
       id: relPath, kind: "file", name: path.basename(relPath),
       file: relPath, line: 1, end_line: endLineOf(sf),
-      exported: 0, src_file: relPath,
+      exported: 0, signature: "", src_file: relPath,
     });
 
     // import 边（file → file）
@@ -182,10 +182,18 @@ export class Extractor {
 
       if (kind && id) {
         const name = this.declName(node) ?? "<anonymous>";
+        // 参数签名：可调用体的参数列表文本（API 面变化检测;evaluator 终验 3 例盲区）
+        let signature = "";
+        const fnLike = ts.isFunctionDeclaration(node) || ts.isMethodDeclaration(node)
+          ? node
+          : ts.isVariableDeclaration(node) && node.initializer && (ts.isArrowFunction(node.initializer) || ts.isFunctionExpression(node.initializer))
+          ? node.initializer
+          : undefined;
+        if (fnLike) signature = fnLike.parameters.map((p) => p.getText(sf)).join(", ").slice(0, 200);
         nodes.push({
           id, kind, name, file: relPath,
           line: lineOf(node), end_line: endLineOf(node),
-          exported: this.isExported(node) ? 1 : 0, src_file: relPath,
+          exported: this.isExported(node) ? 1 : 0, signature, src_file: relPath,
         });
         edges.push({
           src: relPath, dst: id, kind: "contains",

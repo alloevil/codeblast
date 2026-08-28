@@ -60,7 +60,7 @@ class FileExtractor(ast.NodeVisitor):
         self.class_methods = {}  # 类名 → {方法名 → 节点 id}
         end = len(source.splitlines()) or 1
         self.nodes.append(dict(id=rel_path, kind="file", name=os.path.basename(rel_path),
-                               file=rel_path, line=1, end_line=end, exported=0, src_file=rel_path))
+                               file=rel_path, line=1, end_line=end, exported=0, signature="", src_file=rel_path))
 
     # ---------- 定义 ----------
     def qualname(self, name):
@@ -70,7 +70,7 @@ class FileExtractor(ast.NodeVisitor):
         cid = self.qualname(node.name)
         self.nodes.append(dict(id=cid, kind="class", name=node.name, file=self.rel,
                                line=node.lineno, end_line=node.end_lineno or node.lineno,
-                               exported=int(not node.name.startswith("_")), src_file=self.rel))
+                               exported=int(not node.name.startswith("_")), signature="", src_file=self.rel))
         self.edges.append(dict(src=self.rel, dst=cid, kind="contains", file=self.rel,
                                line=node.lineno, confidence="exact", src_file=self.rel))
         if not self.scope:
@@ -88,9 +88,13 @@ class FileExtractor(ast.NodeVisitor):
         fid = self.qualname(node.name)
         in_class = bool(self.scope) and self.scope[-1] in self.class_methods
         kind = "test" if self.is_test else ("method" if in_class else "function")
+        try:
+            sig = ast.unparse(node.args)[:200] if hasattr(ast, "unparse") else ""
+        except Exception:
+            sig = ""
         self.nodes.append(dict(id=fid, kind=kind, name=node.name, file=self.rel,
                                line=node.lineno, end_line=node.end_lineno or node.lineno,
-                               exported=int(not node.name.startswith("_")), src_file=self.rel))
+                               exported=int(not node.name.startswith("_")), signature=sig, src_file=self.rel))
         self.edges.append(dict(src=self.rel, dst=fid, kind="contains", file=self.rel,
                                line=node.lineno, confidence="exact", src_file=self.rel))
         if not self.scope:

@@ -47,6 +47,8 @@ export interface NodeRow {
   line: number; // 1-based
   end_line: number;
   exported: 0 | 1;
+  /** 可调用体的参数签名文本（截断 200 字符）;非可调用节点为空串。签名变更检测用。 */
+  signature: string;
   src_file: string; // 增量失效键
 }
 
@@ -85,6 +87,7 @@ CREATE TABLE IF NOT EXISTS nodes (
   line INTEGER NOT NULL,
   end_line INTEGER NOT NULL,
   exported INTEGER NOT NULL DEFAULT 0,
+  signature TEXT NOT NULL DEFAULT '',
   src_file TEXT NOT NULL,
   PRIMARY KEY (id)
 );
@@ -117,6 +120,10 @@ export function openGraph(dbPath: string): Database {
   const db = new Database(dbPath, { create: true });
   db.exec("PRAGMA journal_mode = WAL;");
   db.exec(DDL);
+  // 旧库迁移：signature 列不存在则补
+  try {
+    db.exec("ALTER TABLE nodes ADD COLUMN signature TEXT NOT NULL DEFAULT ''");
+  } catch { /* 已存在 */ }
   return db;
 }
 

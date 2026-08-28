@@ -23,15 +23,17 @@ export interface GraphDiff {
   edgesRemoved: EdgeDelta[];
   /** export 可见性变化：同一符号 exported 位翻转（API 面变化,静默不一致案例 62c6ab0） */
   visibilityChanged: { id: string; name: string; kind: string; file: string; line: number; nowExported: boolean }[];
+  /** 导出可调用体的参数签名变更（API 面变化;终验 3 例盲区: buildConnectionMessage 等加参被记"结构未变"） */
+  signatureChanged: { id: string; name: string; kind: string; file: string; line: number; from: string; to: string }[];
 }
 
-interface NodeRow { id: string; kind: string; name: string; file: string; line: number; exported: number }
+interface NodeRow { id: string; kind: string; name: string; file: string; line: number; exported: number; signature: string }
 interface EdgeRow { src: string; dst: string; kind: string; file: string; line: number }
 
 const STRUCTURAL_EDGE_KINDS = "('calls','imports','implements','extends')";
 
 export function graphDiff(dbA: Database, dbB: Database): GraphDiff {
-  const q = "SELECT id, kind, name, file, line, exported FROM nodes WHERE kind NOT IN ('file')";
+  const q = "SELECT id, kind, name, file, line, exported, COALESCE(signature,'') signature FROM nodes WHERE kind NOT IN ('file')";
   const nodesA = new Map((dbA.prepare(q).all() as NodeRow[]).map((n) => [n.id, n]));
   const nodesB = new Map((dbB.prepare(q).all() as NodeRow[]).map((n) => [n.id, n]));
 
@@ -44,6 +46,13 @@ export function graphDiff(dbA: Database, dbB: Database): GraphDiff {
     const a = nodesA.get(id);
     if (a && a.exported !== b.exported) {
       visibilityChanged.push({ id, name: b.name, kind: b.kind, file: b.file, line: b.line, nowExported: b.exported === 1 });
+    }
+  }
+  const signatureChanged: GraphDiff["signatureChanged"] = [];
+  for (const [id, b] of nodesB) {
+    const a = nodesA.get(id);
+    if (a && b.exported === 1 && a.signature !== b.signature && (a.signature || b.signature)) {
+      signatureChanged.push({ id, name: b.name, kind: b.kind, file: b.file, line: b.line, from: a.signature, to: b.signature });
     }
   }
 
@@ -92,6 +101,7 @@ export function graphDiff(dbA: Database, dbB: Database): GraphDiff {
     edgesAdded,
     edgesRemoved,
     visibilityChanged,
+    signatureChanged,
   };
 }
 

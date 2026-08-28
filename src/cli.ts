@@ -62,7 +62,7 @@ const t0 = performance.now();
 const db = openGraph(dbPath);
 
 const insertNode = db.prepare(
-  "INSERT OR REPLACE INTO nodes (id, kind, name, file, line, end_line, exported, src_file) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+  "INSERT OR REPLACE INTO nodes (id, kind, name, file, line, end_line, exported, signature, src_file) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
 );
 const insertEdge = db.prepare(
   "INSERT OR REPLACE INTO edges (src, dst, kind, file, line, confidence, src_file) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -76,7 +76,7 @@ const getHash = db.prepare("SELECT hash FROM files WHERE path = ?");
 const writeBatch = db.transaction(
   (relPath: string, hash: string, nodes: NodeRow[], edges: EdgeRow[], blind: BlindSpotRow[]) => {
     invalidateFile(db, relPath);
-    for (const n of nodes) insertNode.run(n.id, n.kind, n.name, n.file, n.line, n.end_line, n.exported, n.src_file);
+    for (const n of nodes) insertNode.run(n.id, n.kind, n.name, n.file, n.line, n.end_line, n.exported, n.signature ?? "", n.src_file);
     for (const e of edges) insertEdge.run(e.src, e.dst, e.kind, e.file, e.line, e.confidence, e.src_file);
     for (const b of blind) insertBlind.run(b.file, b.line, b.reason, b.src_file);
     upsertFile.run(relPath, hash);
