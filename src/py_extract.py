@@ -58,6 +58,8 @@ class FileExtractor(ast.NodeVisitor):
         self.scope = []          # 类/函数名栈
         self.local_defs = {}     # 名字 → 节点 id（本文件顶层 def/class）
         self.class_methods = {}  # 类名 → {方法名 → 节点 id}
+        self.imported_names = {}  # 本地名 → (目标文件, 原名):from x import f [as g] 的绑定
+        self.local_types = {}     # 变量名 → 类名(本文件/具名导入的类构造):b = Builder()
         end = len(source.splitlines()) or 1
         self.nodes.append(dict(id=rel_path, kind="file", name=os.path.basename(rel_path),
                                file=rel_path, line=1, end_line=end, exported=0, signature="", src_file=rel_path))
@@ -101,9 +103,20 @@ class FileExtractor(ast.NodeVisitor):
             self.local_defs[node.name] = fid
         elif in_class:
             self.class_methods[self.scope[-1]][node.name] = fid
+        # 参数注解 → 类型环境: def f(b: Builder) 使函数体内 b.method() 可解析
+        saved_types = dict(self.local_types)
+        for arg in list(node.args.args) + list(node.args.kwonlyargs):
+            if arg.annotation and isinstance(arg.annotation, ast.Name):
+                ann = arg.annotation.id
+                if ann in self.class_methods:
+                    self.local_types[arg.arg] = (self.rel, ann)
+                elif ann in self.imported_names:
+                    dst_file, orig = self.imported_names[ann]
+                    self.local_types[arg.arg] = (dst_file, orig)
         self.scope.append(node.name)
         self.generic_visit(node)
         self.scope.pop()
+        self.local_types = saved_types
 
     visit_FunctionDef = _visit_func
     visit_AsyncFunctionDef = _visit_func
@@ -124,6 +137,9 @@ class FileExtractor(ast.NodeVisitor):
         if dst:
             self.edges.append(dict(src=self.rel, dst=dst, kind="imports", file=self.rel,
                                    line=node.lineno, confidence="exact", src_file=self.rel))
+            for a in node.names:
+                if a.name != "*":
+                    self.imported_names[a.asname or a.name] = (dst, a.name)
 
     # ---------- 调用 ----------
     def current_caller(self):
@@ -142,7 +158,11 @@ class FileExtractor(ast.NodeVisitor):
             elif f.id in self.local_defs:  # 高置信 1：本文件顶层名字
                 self.edges.append(dict(src=caller, dst=self.local_defs[f.id], kind="calls",
                                        file=self.rel, line=node.lineno, confidence="exact", src_file=self.rel))
-            # 其余名字调用（import 进来的/内建）：文件级由 imports 边兜底，不记函数级边也不记盲区
+            elif f.id in self.imported_names:  # 高置信 3：具名导入的跨文件调用 from x import f
+                dst_file, orig = self.imported_names[f.id]
+                self.edges.append(dict(src=caller, dst=f"{dst_file}#{orig}", kind="calls",
+                                       file=self.rel, line=node.lineno, confidence="exact", src_file=self.rel))
+            # 其余名字调用（内建等）：文件级由 imports 边兜底
         elif isinstance(f, ast.Attribute):
             if isinstance(f.value, ast.Name) and f.value.id == "self" and len(self.scope) >= 2:
                 cls = self.scope[0]
@@ -153,10 +173,46 @@ class FileExtractor(ast.NodeVisitor):
                 else:  # 基类方法或动态 → 盲区
                     self.blind.append(dict(file=self.rel, line=node.lineno,
                                            reason=f"unresolved self call: self.{f.attr}()", src_file=self.rel))
+            elif isinstance(f.value, ast.Name) and f.value.id in self.local_types:
+                # 高置信 4：类型可知的方法调用 b = Builder(); b.method() / 注解 b: Builder
+                cls_file, cls_name = self.local_types[f.value.id]
+                self.edges.append(dict(src=caller, dst=f"{cls_file}#{cls_name}.{f.attr}", kind="calls",
+                                       file=self.rel, line=node.lineno, confidence="conservative", src_file=self.rel))
+            elif isinstance(f.value, ast.Name) and f.value.id in self.imported_names:
+                # 高置信 5：模块别名成员调用 from pkg import mod; mod.func()
+                dst_file, orig = self.imported_names[f.value.id]
+                self.edges.append(dict(src=caller, dst=f"{dst_file}#{f.attr}", kind="calls",
+                                       file=self.rel, line=node.lineno, confidence="conservative", src_file=self.rel))
             else:  # obj.method() —— Python 无类型信息，原理性盲区
                 chain = ast.unparse(f)[:80] if hasattr(ast, "unparse") else f.attr
                 self.blind.append(dict(file=self.rel, line=node.lineno,
                                        reason=f"attribute call: {chain}()", src_file=self.rel))
+        self.generic_visit(node)
+    def visit_Assign(self, node):
+        # 类型推断: b = Builder() —— Builder 是本文件类或具名导入的类
+        if isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name):
+            ctor = node.value.func.id
+            target_cls = None
+            if ctor in self.class_methods:
+                target_cls = (self.rel, ctor)
+            elif ctor in self.imported_names and ctor[:1].isupper():
+                dst_file, orig = self.imported_names[ctor]
+                target_cls = (dst_file, orig)
+            if target_cls:
+                for t in node.targets:
+                    if isinstance(t, ast.Name):
+                        self.local_types[t.id] = target_cls
+        self.generic_visit(node)
+
+    def visit_AnnAssign(self, node):
+        # 类型注解: b: Builder = ... / 参数级注解在 _visit_func 处理
+        if isinstance(node.target, ast.Name) and isinstance(node.annotation, ast.Name):
+            ann = node.annotation.id
+            if ann in self.class_methods:
+                self.local_types[node.target.id] = (self.rel, ann)
+            elif ann in self.imported_names:
+                dst_file, orig = self.imported_names[ann]
+                self.local_types[node.target.id] = (dst_file, orig)
         self.generic_visit(node)
 
 
