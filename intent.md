@@ -109,6 +109,9 @@ M4 未达标的修复方向（已开工/待做）:
   Impact 对 Python 明确标注"仅文件级"。函数级零漏报承诺仍为 TS 独有——
   鸭子类型/动态派发使 Python 上该承诺原理性不成立（sgp 实例：
   hasattr(solver,"solve") 派发,静态不可达）。
+  【2026-08-31 升级】方案 B+: 增加具名导入调用解析与轻量类型推断
+  （构造赋值/AnnAssign/参数注解 → 方法调用解析）,sgp 实测函数级调用边 109→446,
+  抽查 5/5 属实,Impact 可达方法级。零漏报承诺仍为 TS 独有不变。
 - 通用代码检索 MCP（不与 Augment 拼 context engine）
 - 代码健康评分（CodeScene 地盘）
 - 自研索引器（scip-typescript 不顺手则 wrap 或提 PR，fork 是最后手段，重写禁止）
