@@ -13,6 +13,7 @@
 import { Database } from "bun:sqlite";
 import { loadOverlay, applyOverlay } from "./overlay";
 import dagre from "@dagrejs/dagre";
+import { impact } from "./impact";
 
 const [dbPath] = process.argv.slice(2);
 const outFlag = process.argv.indexOf("--out");
@@ -21,6 +22,8 @@ const overlayFlag = process.argv.indexOf("--overlay");
 const overlayPath = overlayFlag >= 0 ? process.argv[overlayFlag + 1] : undefined;
 const repoFlag = process.argv.indexOf("--repo-url");
 const repoUrl = repoFlag >= 0 ? process.argv[repoFlag + 1] : undefined; // e.g. https://github.com/o/r/blob/main
+const impactFlag = process.argv.indexOf("--impact");
+const impactTarget = impactFlag >= 0 ? process.argv[impactFlag + 1] : undefined;
 if (!dbPath) {
   console.error("usage: bun run src/archmap-html.ts <graph.db> --out arch.html");
   process.exit(1);
@@ -170,9 +173,46 @@ for (const [mod] of modules) {
     [...agg.values()],
   );
 }
+// Impact overlay: --impact <symbol> 时计算影响集,按文件/模块聚合供着色
+interface ImpactOverlay {
+  target: string;
+  targetFile: string;
+  fileLevels: Record<string, "direct" | "indirect" | "tests">;
+  moduleCounts: Record<string, { direct: number; indirect: number; tests: number }>;
+}
+let impactOverlay: ImpactOverlay | null = null;
+if (impactTarget) {
+  let targetId = impactTarget;
+  const exact = db.prepare("SELECT id, file FROM nodes WHERE id = ?").get(impactTarget) as { id: string; file: string } | null;
+  let targetFile = exact?.file ?? "";
+  if (!exact) {
+    const cands = db.prepare("SELECT id, file FROM nodes WHERE name = ? AND kind != 'file' LIMIT 2").all(impactTarget) as { id: string; file: string }[];
+    if (cands.length !== 1) {
+      console.error(`--impact: ${cands.length === 0 ? "no match" : "ambiguous"}: ${impactTarget}`);
+      process.exit(1);
+    }
+    targetId = cands[0].id;
+    targetFile = cands[0].file;
+  }
+  const r = impact(db, targetId, 100000);
+  const fileLevels: ImpactOverlay["fileLevels"] = {};
+  const moduleCounts: ImpactOverlay["moduleCounts"] = {};
+  const RANK: Record<string, number> = { direct: 3, tests: 2, indirect: 1 };
+  for (const it of r.items) {
+    const prev = fileLevels[it.file];
+    if (!prev || RANK[it.level] > RANK[prev]) fileLevels[it.file] = it.level;
+    const m = moduleOf(it.file);
+    const mc = moduleCounts[m] ?? { direct: 0, indirect: 0, tests: 0 };
+    mc[it.level]++;
+    moduleCounts[m] = mc;
+  }
+  impactOverlay = { target: targetId, targetFile, fileLevels, moduleCounts };
+}
+
 const data = {
   generated: new Date().toISOString().slice(0, 16).replace("T", " "),
   layouts,
+  impact: impactOverlay,
   repoUrl: repoUrl ?? null,
   modules: [...modules.entries()].map(([name, v]) => ({ name, ...v })).sort((a, b) => b.files - a.files),
   moduleMeta: Object.fromEntries(
@@ -215,6 +255,13 @@ const html = `<!DOCTYPE html>
   .node .accentbar { fill: var(--c, var(--accent)); rx: 2; pointer-events: none; }
   .node.test { --c: var(--ok); }
   .node.cyc { --c: var(--warn); }
+  .node.imp-direct { --c: #f85149; } .node.imp-direct rect { stroke-width: 2.2; }
+  .node.imp-tests { --c: #d29922; }
+  .node.imp-indirect { --c: #8957e5; }
+  .node.imp-target rect { stroke: #f85149; stroke-width: 3; filter: drop-shadow(0 0 12px #f8514988); }
+  #impactbar { padding: 8px 16px; background: #f8514915; border-bottom: 1px solid #f8514944;
+    font-size: 13px; display: flex; gap: 18px; align-items: center; }
+  #impactbar .sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
   .node text { fill: var(--fg); font-size: 13.5px; font-weight: 600; pointer-events: none; }
   .node .meta { fill: var(--dim); font-size: 11px; font-weight: 400; font-family: ui-monospace, Menlo, monospace; }
   .edge { stroke: #58a6ff55; fill: none; marker-end: url(#arrow); }
@@ -246,6 +293,11 @@ const html = `<!DOCTYPE html>
 <body>
 <div style="display:flex;flex-direction:column;flex:1">
   <h1 id="title">Architecture Map <small id="crumbs"></small></h1>
+  ${data.impact ? `<div id="impactbar"><strong>Impact: ${data.impact.target.split("#").pop()}</strong>
+    <span><span class="sw" style="background:#f85149"></span>直接影响</span>
+    <span><span class="sw" style="background:#d29922"></span>受影响测试</span>
+    <span><span class="sw" style="background:#8957e5"></span>传递影响</span>
+    <span style="color:var(--dim)">未着色 = 不受影响</span></div>` : ""}
   <div id="graph"><svg id="svg"><defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M 0 0 L 10 5 L 0 10 z" fill="#58a6ff88"/></marker>
@@ -292,6 +344,19 @@ function layout(nodes, edges) {
 
 function esc(s) { return s.replace(/&/g,"&amp;").replace(/</g,"&lt;"); }
 
+function impactClass(id, isModule) {
+  if (!DATA.impact) return "";
+  if (isModule) {
+    const mc = DATA.impact.moduleCounts[id];
+    if (!mc) return "";
+    if (mc.direct > 0) return " imp-direct";
+    if (mc.tests > 0) return " imp-tests";
+    return " imp-indirect";
+  }
+  if (id === DATA.impact.targetFile) return " imp-target";
+  const lv = DATA.impact.fileLevels[id];
+  return lv ? " imp-" + lv : "";
+}
 function buildView() {
   if (view.scope === "modules") {
     return {
@@ -380,7 +445,7 @@ function render() {
   v.nodes.forEach(n => {
     const p = pos[n.id];
     if (!p) return;
-    g += '<g class="node' + (n.test ? " test" : "") + (n.cyc ? " cyc" : "") + '" data-id="' + esc(n.id) + '" onclick="clickNode(\\'' + n.id.replace(/'/g, "\\\\'") + '\\')" onmouseenter="hl(\\'' + n.id.replace(/'/g, "\\\\'") + '\\',1)" onmouseleave="hl(\\'' + n.id.replace(/'/g, "\\\\'") + '\\',0)">'
+    g += '<g class="node' + (n.test ? " test" : "") + (n.cyc ? " cyc" : "") + impactClass(n.id, view.scope === "modules") + '" data-id="' + esc(n.id) + '" onclick="clickNode(\\'' + n.id.replace(/'/g, "\\\\'") + '\\')" onmouseenter="hl(\\'' + n.id.replace(/'/g, "\\\\'") + '\\',1)" onmouseleave="hl(\\'' + n.id.replace(/'/g, "\\\\'") + '\\',0)">'
        + '<rect x="' + p.x + '" y="' + p.y + '" width="' + p.w + '" height="' + p.h + '"/>'
        + '<rect class="accentbar" x="' + p.x + '" y="' + (p.y + 10) + '" width="3.5" height="' + (p.h - 20) + '"/>'
        + '<text x="' + (p.x + p.w / 2) + '" y="' + (p.y + 24) + '" text-anchor="middle">' + esc(n.label) + '</text>'
