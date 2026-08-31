@@ -25,6 +25,9 @@ export interface ImpactItem {
   confidence: "exact" | "conservative";
   /** 到达通道：call = 全程函数级边（calls/implements/extends）；file = 途经文件级边（imports/contains） */
   channel: "call" | "file";
+  /** 具名绑定证据：false=沿途 import 均具名引用目标或不可判;true=存在"未具名引用目标"的 import 跳——
+   *  运行时仍可能依赖(执行闭包),但直接 API 依赖概率低,呈现层可降权排序。 */
+  named_miss?: boolean;
   /** 到达此节点的证据边：调用发生处 */
   via_file: string;
   via_line: number;
@@ -47,6 +50,21 @@ export function impact(db: Database, targetId: string, maxNodes = 500): ImpactRe
     | { id: string; file: string }
     | null;
   if (!targetRow) throw new Error(`node not found: ${targetId}`);
+  const targetName = targetId.includes("#") ? targetId.split("#").pop()!.split(".")[0] : null;
+
+  // barrel 剪枝依据:importer→imported 的具名绑定。star=1 或表缺失(旧库)时不剪。
+  const bindingRows = (() => {
+    try {
+      return db.prepare("SELECT importer, imported, names, star FROM import_bindings").all() as
+        { importer: string; imported: string; names: string; star: number }[];
+    } catch {
+      return [];
+    }
+  })();
+  const bindings = new Map<string, { star: boolean; names: Set<string> }>();
+  for (const b of bindingRows) {
+    bindings.set(`${b.importer}\u0000${b.imported}`, { star: b.star === 1, names: new Set(b.names ? b.names.split(",") : []) });
+  }
 
   // 反向邻接：谁指向我。一次性查代替 N 次查询（大仓性能）。
   const incoming = db.prepare(
@@ -65,9 +83,9 @@ export function impact(db: Database, targetId: string, maxNodes = 500): ImpactRe
   }
 
   // BFS
-  const visited = new Map<string, { hops: number; confidence: "exact" | "conservative"; via_file: string; via_line: number; fileLevel: boolean }>();
+  const visited = new Map<string, { hops: number; confidence: "exact" | "conservative"; via_file: string; via_line: number; fileLevel: boolean; namedMiss: boolean }>();
   let frontier = [targetId];
-  visited.set(targetId, { hops: 0, confidence: "exact", via_file: targetRow.file, via_line: 0, fileLevel: false });
+  visited.set(targetId, { hops: 0, confidence: "exact", via_file: targetRow.file, via_line: 0, fileLevel: false, namedMiss: false });
   let truncated = false;
 
   while (frontier.length > 0 && !truncated) {
@@ -76,9 +94,18 @@ export function impact(db: Database, targetId: string, maxNodes = 500): ImpactRe
       const curInfo = visited.get(cur)!;
       for (const e of byDst.get(cur) ?? []) {
         if (visited.has(e.src)) continue;
+        // 具名绑定标记（不剪枝!):importer 未具名引用目标符号名 → 标记为 indirect-binding,
+        // 供呈现层降权排序。曾实现真剪枝,变异实测召回率 100%→53% 回滚:
+        // import { initTRPC } 语义是依赖其整个执行闭包,不是只依赖这个名字。
+        let namedMiss = false;
+        if (e.kind === "imports" && targetName) {
+          const b = bindings.get(`${e.src}\u0000${e.dst}`);
+          if (b && !b.star && !b.names.has(targetName)) namedMiss = true;
+        }
         const conf = e.confidence === "conservative" || curInfo.confidence === "conservative" ? "conservative" : "exact";
         const fileLevel = curInfo.fileLevel || e.kind === "imports" || e.kind === "contains";
-        visited.set(e.src, { hops: curInfo.hops + 1, confidence: conf, via_file: e.file, via_line: e.line, fileLevel });
+        const nm = curInfo.namedMiss || namedMiss;
+        visited.set(e.src, { hops: curInfo.hops + 1, confidence: conf, via_file: e.file, via_line: e.line, fileLevel, namedMiss: nm });
         next.push(e.src);
         if (visited.size > maxNodes) { truncated = true; break; }
       }
@@ -105,6 +132,7 @@ export function impact(db: Database, targetId: string, maxNodes = 500): ImpactRe
       level, hops: info.hops, confidence: info.confidence,
       via_file: info.via_file, via_line: info.via_line,
       channel: info.fileLevel ? "file" : "call",
+      named_miss: info.namedMiss,
     });
   }
 

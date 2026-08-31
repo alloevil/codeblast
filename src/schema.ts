@@ -69,6 +69,14 @@ export interface BlindSpotRow {
   reason: string; // e.g. "dynamic import with non-literal argument"
   src_file: string;
 }
+/** 具名导入绑定：barrel 剪枝的依据。star=1 时该边不可剪。 */
+export interface ImportBindingRow {
+  importer: string;
+  imported: string;
+  names: string;
+  star: 0 | 1;
+  src_file: string;
+}
 
 const DDL = `
 CREATE TABLE IF NOT EXISTS meta (
@@ -114,6 +122,16 @@ CREATE TABLE IF NOT EXISTS blind_spots (
   PRIMARY KEY (file, line, reason)
 );
 CREATE INDEX IF NOT EXISTS idx_blind_src_file ON blind_spots(src_file);
+CREATE TABLE IF NOT EXISTS import_bindings (
+  importer TEXT NOT NULL,       -- 引入方文件
+  imported TEXT NOT NULL,       -- 被引入文件
+  names TEXT NOT NULL,          -- 逗号分隔的具名绑定;空串+star=0 表示仅副作用 import
+  star INTEGER NOT NULL DEFAULT 0, -- 1 = namespace/星号/default 等无法枚举 → 禁止剪枝
+  src_file TEXT NOT NULL,
+  PRIMARY KEY (importer, imported)
+);
+CREATE INDEX IF NOT EXISTS idx_bindings_imported ON import_bindings(imported);
+CREATE INDEX IF NOT EXISTS idx_bindings_src_file ON import_bindings(src_file);
 `;
 
 export function openGraph(dbPath: string): Database {
@@ -132,5 +150,6 @@ export function invalidateFile(db: Database, relPath: string): void {
   db.prepare("DELETE FROM nodes WHERE src_file = ?").run(relPath);
   db.prepare("DELETE FROM edges WHERE src_file = ?").run(relPath);
   db.prepare("DELETE FROM blind_spots WHERE src_file = ?").run(relPath);
+  db.prepare("DELETE FROM import_bindings WHERE src_file = ?").run(relPath);
   db.prepare("DELETE FROM files WHERE path = ?").run(relPath);
 }
