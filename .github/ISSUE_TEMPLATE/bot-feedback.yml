@@ -1,0 +1,27 @@
+name: PR bot 反馈
+description: codeblast PR 评论不准确或遗漏时的快速反馈
+title: "[feedback] "
+labels: [bot-feedback]
+body:
+  - type: dropdown
+    id: kind
+    attributes:
+      label: 问题类型
+      options:
+        - 误报（评论说有影响,实际没有）
+        - 漏报（真实影响/行为变更没被报出）
+        - 噪音（陈述属实但对 review 无价值）
+        - 该静默却发声 / 该发声却静默
+    validations:
+      required: true
+  - type: textarea
+    id: detail
+    attributes:
+      label: 哪条结论有问题
+      description: 贴上评论中的具体行,以及真实情况
+    validations:
+      required: true
+  - type: input
+    id: repo
+    attributes:
+      label: 仓库与 PR 链接（可选）

@@ -235,5 +235,5 @@ if (total === 0 && bodyChanged.length > 0) {
   lines[2] = `**无结构变更**,但有 ${bodyChanged.length} 个函数体内改动（见下）`;
 }
 
-lines.push(`<sub>由 [codeblast](https://github.com/alloevil/codeblast) 生成 · 每条结论基于静态分析,含证据链接 · 动态调用盲区不在本报告内</sub>`);
+lines.push(`<sub>由 [codeblast](https://github.com/alloevil/codeblast) 生成 · 每条结论基于静态分析,含证据链接 · 动态调用盲区不在本报告内 · 评论不准?[30 秒反馈](https://github.com/alloevil/codeblast/issues/new?template=bot-feedback.yml&title=${encodeURIComponent(`[feedback] ${baseSha.slice(0, 7)}..${headSha.slice(0, 7)}`)})</sub>`);
 console.log(lines.join("\n"));

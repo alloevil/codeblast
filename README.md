@@ -23,6 +23,10 @@
 | 🗺️ | **What does this project look like?** | `archmap` — collapsible module map + circular-dependency detection |
 
 Built for humans (CLI / interactive HTML / PR comments) and for AI agents ([SKILL.md](SKILL.md)) — one graph, two front-ends.
+```bash
+# Install as an agent skill (Claude Code, Codex, Cursor, and 14 more harnesses)
+npx skills add alloevil/codeblast
+```
 
 ## Why not yet another LLM diagram tool
 
