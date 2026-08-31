@@ -116,6 +116,36 @@ for (const tsconfigPath of tsconfigs) {
     console.error(`skip ${path.relative(repoRoot, tsconfigPath)}: ${err instanceof Error ? err.message.split("\n")[0] : err}`);
     continue;
   }
+  // 廉价预检：该包全部文件 hash 未变 → 跳过整个 program 构建（增量场景的大头收益）
+  const names = extractor.fileNames();
+  let anyChanged = names.length === 0; // 空包走完整路径兜底
+  for (const abs of names) {
+    const rel = path.relative(repoRoot, abs);
+    if (rel.startsWith("..") || seenFiles.has(rel)) continue;
+    let text: string;
+    try {
+      text = fs.readFileSync(abs, "utf8");
+    } catch {
+      anyChanged = true;
+      break;
+    }
+    const hash = createHash("sha1").update(text).digest("hex");
+    const existing = getHash.get(rel) as { hash: string } | null;
+    if (existing?.hash !== hash) {
+      anyChanged = true;
+      break;
+    }
+  }
+  if (!anyChanged) {
+    for (const abs of names) {
+      const rel = path.relative(repoRoot, abs);
+      if (!rel.startsWith("..") && !seenFiles.has(rel)) {
+        seenFiles.add(rel);
+        skipped++;
+      }
+    }
+    continue;
+  }
   indexProgram(extractor);
 }
 
@@ -136,7 +166,32 @@ function sweep(dir: string): void {
 sweep(repoRoot);
 if (tsconfigs.length > 0 && orphans.length > 0) {
   console.error(`orphan files (outside all tsconfigs): ${orphans.length}`);
+  // 同样的廉价预检：孤儿文件全部未变则跳过兜底 program
+  let orphanChanged = false;
+  for (const abs of orphans) {
+    const rel = path.relative(repoRoot, abs);
+    let text: string;
+    try {
+      text = fs.readFileSync(abs, "utf8");
+    } catch {
+      orphanChanged = true;
+      break;
+    }
+    const hash = createHash("sha1").update(text).digest("hex");
+    const existing = getHash.get(rel) as { hash: string } | null;
+    if (existing?.hash !== hash) {
+      orphanChanged = true;
+      break;
+    }
+  }
+  if (orphanChanged) {
   indexProgram(Extractor.forFiles(orphans, tsconfigs[0], repoRoot));
+  } else {
+    for (const abs of orphans) {
+      seenFiles.add(path.relative(repoRoot, abs));
+      skipped++;
+    }
+  }
 }
 // Python 摄取（方案 B：高置信边 only，Impact 仅文件级）
 const pyProbe = Bun.spawnSync(["python3", path.join(import.meta.dir, "py_extract.py"), repoRoot]);
