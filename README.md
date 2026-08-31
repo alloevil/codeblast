@@ -23,6 +23,23 @@
 | 🗺️ | **What does this project look like?** | `archmap` — collapsible module map + circular-dependency detection |
 
 Built for humans (CLI / interactive HTML / PR comments) and for AI agents ([SKILL.md](SKILL.md)) — one graph, two front-ends.
+<table>
+  <tr>
+    <td width="50%">
+      <a href="https://alloevil.github.io/codeblast/trpc-impact-demo.html">
+        <img src="assets/readme/impact-overlay.png" alt="Impact blast radius painted on the tRPC architecture map: red = direct callers, amber = affected tests, purple = transitive"/>
+      </a>
+      <p align="center"><sub><b>Impact overlay</b> — blast radius on the map (tRPC · <a href="https://alloevil.github.io/codeblast/trpc-impact-demo.html">live ↗</a>)</sub></p>
+    </td>
+    <td width="50%">
+      <a href="https://alloevil.github.io/codeblast/tabby-arch.html">
+        <img src="assets/readme/arch-hover.png" alt="Tabby architecture map with hover highlighting: all edges into tabby-core lit up"/>
+      </a>
+      <p align="center"><sub><b>Architecture map</b> — hover lights the dependency fan-in (Tabby, 60k★ · <a href="https://alloevil.github.io/codeblast/tabby-arch.html">live ↗</a>)</sub></p>
+    </td>
+  </tr>
+</table>
+
 ```bash
 # Install as an agent skill (Claude Code, Codex, Cursor, and 14 more harnesses)
 npx skills add alloevil/codeblast
