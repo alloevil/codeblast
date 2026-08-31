@@ -10,11 +10,13 @@ import ts from "typescript";
 import path from "node:path";
 import fs from "node:fs";
 import type { Confidence, EdgeRow, NodeRow, BlindSpotRow } from "./schema";
+import type { ImportBindingRow } from "./schema";
 
 export interface ExtractResult {
   nodes: NodeRow[];
   edges: EdgeRow[];
   blindSpots: BlindSpotRow[];
+  bindings: ImportBindingRow[];
 }
 
 const TEST_FILE_RE = /\.(test|spec)\.[cm]?[jt]sx?$|__tests__\//;
@@ -63,6 +65,8 @@ export class Extractor {
   private workspacePkgs = new Map<string, string>();
   /** interface/abstract 声明 id → 实现节点 id 列表（保守全连用），全仓收集。 */
   private implementers = new Map<string, string[]>();
+  /** 当前文件的 import 绑定聚合（extractFile 期间使用后清空）。 */
+  private pendingBindings = new Map<string, { star: boolean; names: Set<string> }>();
 
   constructor(tsconfigPath: string, repoRoot?: string) {
     const configFile = ts.readConfigFile(tsconfigPath, ts.sys.readFile);
@@ -95,6 +99,7 @@ export class Extractor {
     ex.rootDir = repoRoot;
     ex.workspacePkgs = discoverWorkspacePackages(repoRoot);
     ex.implementers = new Map();
+    ex.pendingBindings = new Map();
     ex.parsedConfig = { ...parsed, fileNames };
     ex.programBuilt = false;
     return ex;
@@ -145,6 +150,7 @@ export class Extractor {
     const nodes: NodeRow[] = [];
     const edges: EdgeRow[] = [];
     const blindSpots: BlindSpotRow[] = [];
+    this.pendingBindings.clear();
 
     const lineOf = (node: ts.Node) => sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
     const endLineOf = (node: ts.Node) => sf.getLineAndCharacterOfPosition(node.getEnd()).line + 1;
@@ -167,6 +173,43 @@ export class Extractor {
               src: relPath, dst: this.rel(resolved), kind: "imports",
               file: relPath, line: lineOf(stmt), confidence: "exact", src_file: relPath,
             });
+            // 具名绑定提取（barrel 剪枝依据）:能枚举到名字 → names;namespace/default/无子句 → star
+            const dstRel = this.rel(resolved);
+            let names: string[] = [];
+            let star = false;
+            if (ts.isImportDeclaration(stmt)) {
+              const c = stmt.importClause;
+              if (!c) star = true;                       // 副作用 import → 保守
+              else {
+                if (c.name) star = true;                 // default import → 无法映射名字
+                if (c.namedBindings) {
+                  if (ts.isNamespaceImport(c.namedBindings)) star = true;
+                  else for (const el of c.namedBindings.elements) {
+                    const src = (el.propertyName ?? el.name).text;
+                    if (src === "default") star = true;
+                    else names.push(src);
+                  }
+                }
+              }
+            } else {
+              // export ... from
+              if (stmt.exportClause && ts.isNamedExports(stmt.exportClause)) {
+                for (const el of stmt.exportClause.elements) {
+                  // 重命名 re-export（f as g）:下游按 g 引用,名字链断裂 → 该绑定不可剪
+                  if (el.propertyName && el.propertyName.text !== el.name.text) star = true;
+                  else if (el.name.text === "default") star = true;
+                  else names.push(el.name.text);
+                }
+              } else star = true;                        // export * from → 保守
+            }
+            const key = `${relPath}\u0000${dstRel}`;
+            const prev = this.pendingBindings.get(key);
+            if (prev) {
+              prev.star = prev.star || star;
+              for (const n of names) prev.names.add(n);
+            } else {
+              this.pendingBindings.set(key, { star, names: new Set(names) });
+            }
           }
         } else if (spec) {
           blindSpots.push({ file: relPath, line: lineOf(stmt), reason: "non-literal module specifier", src_file: relPath });
@@ -269,7 +312,11 @@ export class Extractor {
       }
     }
 
-    return { nodes, edges, blindSpots };
+    const bindings: ImportBindingRow[] = [...this.pendingBindings.entries()].map(([key, v]) => {
+      const [importer, imported] = key.split("\u0000");
+      return { importer, imported, names: [...v.names].join(","), star: v.star ? 1 : 0, src_file: relPath };
+    });
+    return { nodes, edges, blindSpots, bindings };
   }
 
   /** 调用目标解析：exact → conservative（接口全连）→ blind。 */

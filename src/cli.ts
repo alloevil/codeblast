@@ -10,6 +10,7 @@ import path from "node:path";
 import fs from "node:fs";
 import { createHash } from "node:crypto";
 import { openGraph, invalidateFile, type NodeRow, type EdgeRow, type BlindSpotRow } from "./schema";
+import type { ImportBindingRow } from "./schema";
 import { Extractor } from "./extract";
 
 const args = process.argv.slice(2);
@@ -70,15 +71,19 @@ const insertEdge = db.prepare(
 const insertBlind = db.prepare(
   "INSERT OR REPLACE INTO blind_spots (file, line, reason, src_file) VALUES (?, ?, ?, ?)",
 );
+const insertBinding = db.prepare(
+  "INSERT OR REPLACE INTO import_bindings (importer, imported, names, star, src_file) VALUES (?, ?, ?, ?, ?)",
+);
 const upsertFile = db.prepare("INSERT OR REPLACE INTO files (path, hash) VALUES (?, ?)");
 const getHash = db.prepare("SELECT hash FROM files WHERE path = ?");
 
 const writeBatch = db.transaction(
-  (relPath: string, hash: string, nodes: NodeRow[], edges: EdgeRow[], blind: BlindSpotRow[]) => {
+  (relPath: string, hash: string, nodes: NodeRow[], edges: EdgeRow[], blind: BlindSpotRow[], bindings: ImportBindingRow[] = []) => {
     invalidateFile(db, relPath);
     for (const n of nodes) insertNode.run(n.id, n.kind, n.name, n.file, n.line, n.end_line, n.exported, n.signature ?? "", n.src_file);
     for (const e of edges) insertEdge.run(e.src, e.dst, e.kind, e.file, e.line, e.confidence, e.src_file);
     for (const b of blind) insertBlind.run(b.file, b.line, b.reason, b.src_file);
+    for (const ib of bindings) insertBinding.run(ib.importer, ib.imported, ib.names, ib.star, ib.src_file);
     upsertFile.run(relPath, hash);
   },
 );
@@ -99,8 +104,8 @@ function indexProgram(extractor: Extractor): void {
       skipped++;
       continue;
     }
-    const { nodes, edges, blindSpots } = extractor.extractFile(sf);
-    writeBatch(relPath, hash, nodes, edges, blindSpots);
+    const { nodes, edges, blindSpots, bindings } = extractor.extractFile(sf);
+    writeBatch(relPath, hash, nodes, edges, blindSpots, bindings);
     indexed++;
     nodeCount += nodes.length;
     edgeCount += edges.length;

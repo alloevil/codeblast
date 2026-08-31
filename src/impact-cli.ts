@@ -44,12 +44,14 @@ if (process.argv.includes("--json")) {
 const byLevel = { direct: 0, indirect: 0, tests: 0 };
 for (const it of result.items) byLevel[it.level]++;
 const callItems = result.items.filter((it) => it.channel === "call");
-const fileCount = result.items.length - callItems.length;
+const fileNamed = result.items.filter((it) => it.channel === "file" && !it.named_miss);
+const fileUnnamed = result.items.filter((it) => it.channel === "file" && it.named_miss);
 
 console.log(`target: ${result.target}`);
 console.log(`impact: ${result.items.length} nodes (direct=${byLevel.direct} indirect=${byLevel.indirect} tests=${byLevel.tests})${result.truncated ? " [TRUNCATED — 广泛影响，建议全量测试]" : ""}`);
 console.log(`  ├─ 调用链可达（高置信）: ${callItems.length}`);
-console.log(`  └─ 经 import/re-export 可达（保守补充,勿跳过）: ${fileCount}`);
+console.log(`  ├─ 经具名 import 可达: ${fileNamed.length}`);
+console.log(`  └─ 经未具名 import 可达（执行闭包保守项,勿跳过）: ${fileUnnamed.length}`);
 if (result.blind_spot_count > 0) console.log(`blind spots in target file: ${result.blind_spot_count} (影响可能被低估)`);
 if (result.co_change_hints.length > 0) {
   console.log(`历史耦合提示（静态图无边,但常一起改）:`);
@@ -57,10 +59,10 @@ if (result.co_change_hints.length > 0) {
 }
 console.log(`query: ${ms}ms\n`);
 
-const ordered = [...callItems, ...result.items.filter((it) => it.channel !== "call")];
+const ordered = [...callItems, ...fileNamed, ...fileUnnamed];
 for (const it of ordered.slice(0, 40)) {
   const conf = it.confidence === "conservative" ? " ~" : "";
-  const ch = it.channel === "file" ? " ·import" : "";
+  const ch = it.channel === "file" ? (it.named_miss ? " ·closure" : " ·import") : "";
   console.log(`  [${it.level}${conf}${ch}] ${it.id}  (${it.kind}, ${it.hops} hop, via ${it.via_file}:${it.via_line})`);
 }
 if (ordered.length > 40) console.log(`  ... and ${ordered.length - 40} more`);
