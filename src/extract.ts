@@ -54,8 +54,10 @@ function discoverWorkspacePackages(repoRoot: string): Map<string, string> {
 }
 
 export class Extractor {
-  private program: ts.Program;
-  private checker: ts.TypeChecker;
+  private program!: ts.Program;
+  private checker!: ts.TypeChecker;
+  private parsedConfig: ts.ParsedCommandLine;
+  private programBuilt = false;
   private rootDir: string;
   /** workspace 包名 → 包内入口目录（node_modules 未链接时的兜底解析）。 */
   private workspacePkgs = new Map<string, string>();
@@ -68,9 +70,22 @@ export class Extractor {
     const parsed = ts.parseJsonConfigFileContent(configFile.config, ts.sys, path.dirname(tsconfigPath));
     this.rootDir = repoRoot ?? path.dirname(path.resolve(tsconfigPath));
     this.workspacePkgs = discoverWorkspacePackages(this.rootDir);
-    const options = injectWorkspacePaths(parsed.options, this.workspacePkgs, this.rootDir);
-    this.program = ts.createProgram({ rootNames: parsed.fileNames, options });
+    this.parsedConfig = parsed;
+  }
+
+  /** 廉价预检：不建 program,列出该 config 覆盖的文件（增量跳过判断用）。 */
+  fileNames(): string[] {
+    // .d.ts 与提取路径的 isDeclarationFile 过滤保持一致,否则预检永远误判 changed
+    return this.parsedConfig.fileNames.filter((f) => !f.includes("node_modules") && !f.endsWith(".d.ts"));
+  }
+
+  /** program 惰性构建：只有真要提取时才付 tsc 代价。 */
+  ensureProgram(): void {
+    if (this.programBuilt) return;
+    const options = injectWorkspacePaths(this.parsedConfig.options, this.workspacePkgs, this.rootDir);
+    this.program = ts.createProgram({ rootNames: this.parsedConfig.fileNames, options });
     this.checker = this.program.getTypeChecker();
+    this.programBuilt = true;
   }
   /** 兜底：给未被任何 tsconfig include 的散落文件（如 tsconfig 外的 test）建 program。 */
   static forFiles(fileNames: string[], baseTsconfigPath: string, repoRoot: string): Extractor {
@@ -80,12 +95,13 @@ export class Extractor {
     ex.rootDir = repoRoot;
     ex.workspacePkgs = discoverWorkspacePackages(repoRoot);
     ex.implementers = new Map();
-    ex.program = ts.createProgram({ rootNames: fileNames, options: injectWorkspacePaths(parsed.options, ex.workspacePkgs, repoRoot) });
-    ex.checker = ex.program.getTypeChecker();
+    ex.parsedConfig = { ...parsed, fileNames };
+    ex.programBuilt = false;
     return ex;
   }
 
   sourceFiles(): ts.SourceFile[] {
+    this.ensureProgram();
     return this.program
       .getSourceFiles()
       .filter((sf) => !sf.isDeclarationFile && !sf.fileName.includes("node_modules"));
