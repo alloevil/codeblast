@@ -73,6 +73,13 @@ bun run <codeblast>/src/change-cli.ts <repo-root> <ref-a> <ref-b> --json
 bun run <codeblast>/src/archmap.ts /tmp/graph.db            # Mermaid（贴 PR/文档）
 bun run <codeblast>/src/archmap-html.ts /tmp/graph.db --out arch.html --repo-url <github-blob-url>  # 交互 HTML
 ```
+叠加模式（同一张图上画 ②③ 的结果）：
+```bash
+# Impact 叠加: 影响半径着色（红=直接/金=测试/紫=传递,目标发光）
+bun run <codeblast>/src/archmap-html.ts head.db --impact "<符号>" --out impact.html
+# Change 叠加: 两图 diff 着色（绿=新增/金=修改/紫=删除,顶栏带变更摘要）
+bun run <codeblast>/src/archmap-html.ts head.db --diff base.db --out change.html
+```
 
 模块折叠图 + 循环依赖检测（红色虚线）+ 每模块盲区计数。
 HTML 版支持模块→文件→符号三层下钻，符号点击跳 GitHub 源码行。

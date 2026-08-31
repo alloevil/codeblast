@@ -14,6 +14,7 @@ import { Database } from "bun:sqlite";
 import { loadOverlay, applyOverlay } from "./overlay";
 import dagre from "@dagrejs/dagre";
 import { impact } from "./impact";
+import { graphDiff } from "./graph-diff";
 
 const [dbPath] = process.argv.slice(2);
 const outFlag = process.argv.indexOf("--out");
@@ -24,6 +25,8 @@ const repoFlag = process.argv.indexOf("--repo-url");
 const repoUrl = repoFlag >= 0 ? process.argv[repoFlag + 1] : undefined; // e.g. https://github.com/o/r/blob/main
 const impactFlag = process.argv.indexOf("--impact");
 const impactTarget = impactFlag >= 0 ? process.argv[impactFlag + 1] : undefined;
+const diffFlag = process.argv.indexOf("--diff");
+const diffBase = diffFlag >= 0 ? process.argv[diffFlag + 1] : undefined; // base graph.db 路径
 if (!dbPath) {
   console.error("usage: bun run src/archmap-html.ts <graph.db> --out arch.html");
   process.exit(1);
@@ -181,6 +184,33 @@ interface ImpactOverlay {
   moduleCounts: Record<string, { direct: number; indirect: number; tests: number }>;
 }
 let impactOverlay: ImpactOverlay | null = null;
+// Change overlay: --diff <base.db> 时对比两图,文件级变更着色
+interface DiffOverlay {
+  fileStates: Record<string, "added" | "removed" | "changed">;
+  moduleCounts: Record<string, { added: number; removed: number; changed: number; renamed: number }>;
+  summary: string;
+}
+let diffOverlay: DiffOverlay | null = null;
+if (diffBase) {
+  const dbBase = new Database(diffBase, { readonly: true });
+  const d = graphDiff(dbBase, db);
+  const fileStates: DiffOverlay["fileStates"] = {};
+  const moduleCounts: DiffOverlay["moduleCounts"] = {};
+  const bump = (file: string, key: "added" | "removed" | "changed" | "renamed") => {
+    const m = moduleOf(file);
+    const mc = moduleCounts[m] ?? { added: 0, removed: 0, changed: 0, renamed: 0 };
+    mc[key]++;
+    moduleCounts[m] = mc;
+  };
+  for (const n of d.nodesAdded) { fileStates[n.file] ??= "added"; bump(n.file, "added"); }
+  for (const n of d.nodesRemoved) { fileStates[n.file] = fileStates[n.file] === "added" ? "changed" : (fileStates[n.file] ?? "removed"); bump(n.file, "removed"); }
+  for (const r of d.renamed) { fileStates[r.file] = "changed"; bump(r.file, "renamed"); }
+  for (const s of d.signatureChanged) { fileStates[s.file] = "changed"; bump(s.file, "changed"); }
+  for (const v of d.visibilityChanged) { fileStates[v.file] = "changed"; bump(v.file, "changed"); }
+  const total = d.nodesAdded.length + d.nodesRemoved.length + d.renamed.length + d.signatureChanged.length + d.visibilityChanged.length;
+  diffOverlay = { fileStates, moduleCounts, summary: `符号 +${d.nodesAdded.length} −${d.nodesRemoved.length} ↻${d.renamed.length} · 签名/可见性 ${d.signatureChanged.length + d.visibilityChanged.length} · 共 ${total} 项` };
+  dbBase.close();
+}
 if (impactTarget) {
   let targetId = impactTarget;
   const exact = db.prepare("SELECT id, file FROM nodes WHERE id = ?").get(impactTarget) as { id: string; file: string } | null;
@@ -213,6 +243,7 @@ const data = {
   generated: new Date().toISOString().slice(0, 16).replace("T", " "),
   layouts,
   impact: impactOverlay,
+  diff: diffOverlay,
   repoUrl: repoUrl ?? null,
   modules: [...modules.entries()].map(([name, v]) => ({ name, ...v })).sort((a, b) => b.files - a.files),
   moduleMeta: Object.fromEntries(
@@ -259,6 +290,9 @@ const html = `<!DOCTYPE html>
   .node.imp-tests { --c: #d29922; }
   .node.imp-indirect { --c: #8957e5; }
   .node.imp-target rect { stroke: #f85149; stroke-width: 3; filter: drop-shadow(0 0 12px #f8514988); }
+  .node.chg-added { --c: var(--ok); } .node.chg-added rect { stroke-width: 2.2; }
+  .node.chg-removed { --c: #6e40c9; opacity: 0.65; }
+  .node.chg-changed { --c: #d29922; } .node.chg-changed rect { stroke-width: 2.2; }
   #impactbar { padding: 8px 16px; background: #f8514915; border-bottom: 1px solid #f8514944;
     font-size: 13px; display: flex; gap: 18px; align-items: center; }
   #impactbar .sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
@@ -298,6 +332,11 @@ const html = `<!DOCTYPE html>
     <span><span class="sw" style="background:#d29922"></span>受影响测试</span>
     <span><span class="sw" style="background:#8957e5"></span>传递影响</span>
     <span style="color:var(--dim)">未着色 = 不受影响</span></div>` : ""}
+  ${data.diff ? `<div id="impactbar" style="background:#3fb95012;border-color:#3fb95044"><strong>Change Map</strong>
+    <span>${data.diff.summary}</span>
+    <span><span class="sw" style="background:#3fb950"></span>新增</span>
+    <span><span class="sw" style="background:#d29922"></span>修改</span>
+    <span><span class="sw" style="background:#6e40c9"></span>删除</span></div>` : ""}
   <div id="graph"><svg id="svg"><defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M 0 0 L 10 5 L 0 10 z" fill="#58a6ff88"/></marker>
@@ -345,6 +384,17 @@ function layout(nodes, edges) {
 function esc(s) { return s.replace(/&/g,"&amp;").replace(/</g,"&lt;"); }
 
 function impactClass(id, isModule) {
+  if (DATA.diff) {
+    if (isModule) {
+      const mc = DATA.diff.moduleCounts[id];
+      if (!mc) return "";
+      if (mc.added > mc.changed && mc.added >= mc.removed) return " chg-added";
+      if (mc.removed > mc.added && mc.removed > mc.changed) return " chg-removed";
+      return " chg-changed";
+    }
+    const st = DATA.diff.fileStates[id];
+    return st ? " chg-" + st : "";
+  }
   if (!DATA.impact) return "";
   if (isModule) {
     const mc = DATA.impact.moduleCounts[id];
