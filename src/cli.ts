@@ -91,6 +91,9 @@ const writeBatch = db.transaction(
 let indexed = 0, skipped = 0, nodeCount = 0, edgeCount = 0, blindCount = 0;
 const seenFiles = new Set<string>(); // 跨包去重：同一文件只归属第一个索引它的 program
 
+/** 提取失败计数：任何文件级失败都会让进程以非零码退出（曾静默丢失 115 文件）。 */
+let failures = 0;
+
 function indexProgram(extractor: Extractor): void {
   extractor.collectImplementers();
   for (const sf of extractor.sourceFiles()) {
@@ -104,12 +107,18 @@ function indexProgram(extractor: Extractor): void {
       skipped++;
       continue;
     }
-    const { nodes, edges, blindSpots, bindings } = extractor.extractFile(sf);
-    writeBatch(relPath, hash, nodes, edges, blindSpots, bindings);
-    indexed++;
-    nodeCount += nodes.length;
-    edgeCount += edges.length;
-    blindCount += blindSpots.length;
+    try {
+      const { nodes, edges, blindSpots, bindings } = extractor.extractFile(sf);
+      writeBatch(relPath, hash, nodes, edges, blindSpots, bindings);
+      indexed++;
+      nodeCount += nodes.length;
+      edgeCount += edges.length;
+      blindCount += blindSpots.length;
+    } catch (err) {
+      failures++;
+      seenFiles.delete(relPath); // 允许后续 program 重试该文件
+      console.error(`EXTRACT FAILED ${relPath}: ${err instanceof Error ? err.message : err}`);
+    }
   }
 }
 
@@ -190,7 +199,12 @@ if (tsconfigs.length > 0 && orphans.length > 0) {
     }
   }
   if (orphanChanged) {
-  indexProgram(Extractor.forFiles(orphans, tsconfigs[0], repoRoot));
+    try {
+      indexProgram(Extractor.forFiles(orphans, tsconfigs[0], repoRoot));
+    } catch (err) {
+      failures++;
+      console.error(`ORPHAN PROGRAM FAILED (${orphans.length} files unindexed): ${err instanceof Error ? err.message : err}`);
+    }
   } else {
     for (const abs of orphans) {
       seenFiles.add(path.relative(repoRoot, abs));
@@ -227,4 +241,9 @@ console.log(JSON.stringify({
   db: dbPath, seconds: Number(dt), tsconfigs: tsconfigs.length,
   files_indexed: indexed, files_skipped: skipped,
   nodes: nodeCount, edges: edgeCount, blind_spots: blindCount,
+  failures,
 }, null, 2));
+if (failures > 0) {
+  console.error(`\n${failures} extraction failure(s) — graph is INCOMPLETE. Exiting non-zero.`);
+  process.exit(2);
+}

@@ -1,0 +1,77 @@
+# 验收回归：每周 + 手动触发。护的是项目唯一的护城河——100% 召回承诺。
+# 失败即开 issue（AGENTS.md: 召回率 <100% 的改动禁止合入）。
+name: acceptance
+
+on:
+  schedule:
+    - cron: "0 3 * * 1" # 每周一 03:00 UTC
+  workflow_dispatch:
+    inputs:
+      mutants:
+        description: "变异数量"
+        default: "10"
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  mutation-recall:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install
+
+      - name: Self smoke (fail-loud check)
+        run: bun run src/demo.ts
+
+      - name: Clone benchmark repo (tRPC)
+        run: git clone --depth 300 https://github.com/trpc/trpc.git /tmp/trpc
+
+      - name: Install benchmark deps
+        working-directory: /tmp/trpc
+        run: corepack enable && pnpm install --ignore-scripts
+
+      - name: Build graph
+        run: |
+          bun run src/cli.ts /tmp/trpc --db /tmp/trpc.db
+          python3 -c "
+          import sqlite3, sys
+          c = sqlite3.connect('/tmp/trpc.db')
+          files, nodes, edges = (c.execute(q).fetchone()[0] for q in
+            ['SELECT COUNT(*) FROM files', 'SELECT COUNT(*) FROM nodes', 'SELECT COUNT(*) FROM edges'])
+          print(f'files={files} nodes={nodes} edges={edges}')
+          # 规模哨兵:文件数骤降 = 静默丢文件回归（曾丢 115 个孤儿文件）
+          assert files > 900, f'file count regression: {files} < 900'
+          assert edges > 15000, f'edge count regression: {edges} < 15000'
+          "
+
+      - name: Mutation testing — recall must be 100%
+        id: mutation
+        run: |
+          python3 eval/mutation_check.py /tmp/trpc /tmp/trpc.db "${{ github.event.inputs.mutants || 10 }}" 2>&1 | tee /tmp/mutation.log
+          RECALL=$(grep -oP '^recall: \d+/\d+ = \K\d+' /tmp/mutation.log || echo "0")
+          echo "recall=$RECALL" >> "$GITHUB_OUTPUT"
+          tail -12 /tmp/mutation.log >> "$GITHUB_STEP_SUMMARY"
+          if [ "$RECALL" != "100" ]; then
+            echo "::error::recall $RECALL% — below the 100% gate"
+            exit 1
+          fi
+
+      - name: Open issue on regression
+        if: failure() && github.event_name == 'schedule'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let log = '(log unavailable)';
+            try { log = fs.readFileSync('/tmp/mutation.log', 'utf8').slice(-3000); } catch {}
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `acceptance regression — recall gate failed (${new Date().toISOString().slice(0,10)})`,
+              labels: ['acceptance-regression'],
+              body: `Weekly acceptance run failed the 100% recall gate.\n\nRun: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}\n\n\`\`\`\n${log}\n\`\`\``,
+            });
