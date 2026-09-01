@@ -1,14 +1,46 @@
 {
   "name": "codeblast",
-  "version": "0.0.1",
-  "private": true,
+  "version": "0.1.0",
+  "description": "Know what breaks before you merge — mutation-tested code graph with architecture, change & impact maps. Evidence on every edge. For humans and AI agents.",
+  "keywords": [
+    "impact-analysis",
+    "blast-radius",
+    "call-graph",
+    "code-graph",
+    "architecture",
+    "code-visualization",
+    "static-analysis",
+    "typescript",
+    "monorepo",
+    "pr-review",
+    "agent-skill"
+  ],
+  "license": "MIT",
+  "repository": { "type": "git", "url": "git+https://github.com/alloevil/codeblast.git" },
+  "homepage": "https://alloevil.github.io/codeblast/",
+  "bugs": { "url": "https://github.com/alloevil/codeblast/issues" },
   "type": "module",
-  "scripts": {
-    "index": "bun run src/cli.ts"
+  "bin": {
+    "codeblast": "./src/bin.ts"
   },
+  "files": [
+    "src",
+    "SKILL.md",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "index": "bun run src/cli.ts",
+    "impact": "bun run src/impact-cli.ts",
+    "change": "bun run src/change-cli.ts",
+    "archmap": "bun run src/archmap-html.ts",
+    "demo": "bun run src/demo.ts",
+    "verify": "python3 eval/mutation_check.py"
+  },
+  "engines": { "bun": ">=1.0.0" },
   "dependencies": {
-    "@dagrejs/dagre": "^3.1.1",
-    "typescript": "^5.9"
+    "@dagrejs/dagre": "^1.1.8",
+    "typescript": "^5.9.3"
   },
   "devDependencies": {
     "@types/node": "^26.4.0",
