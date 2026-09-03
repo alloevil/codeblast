@@ -99,7 +99,7 @@ jobs:
         working-directory: /tmp/graphql-tools
         env:
           PUPPETEER_SKIP_DOWNLOAD: "true"
-        run: npm install --ignore-scripts --no-audit --no-fund
+        run: npm ci --ignore-scripts --no-audit --no-fund
 
       - name: Build graph
         run: |
