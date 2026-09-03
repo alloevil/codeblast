@@ -15,7 +15,7 @@ jobs:
   analyze:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: oven-sh/setup-bun@v2
@@ -31,7 +31,7 @@ jobs:
           echo "lock=$(sha256sum /tmp/codeblast/bun.lock | cut -c1-16)" >> "$GITHUB_OUTPUT"
         id: codeblast
       # 依赖按 bun.lock 哈希缓存；命中时跳过 bun install（原每 PR ~40s）
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         id: codeblast-deps
         with:
           path: /tmp/codeblast/node_modules
@@ -50,7 +50,7 @@ jobs:
           echo "has_comment=$([ -s /tmp/comment.md ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
       - name: Comment
         if: steps.analyze.outputs.has_comment == 'true'
-        uses: marocchino/sticky-pull-request-comment@v2
+        uses: marocchino/sticky-pull-request-comment@v3
         with:
           header: codeblast
           path: /tmp/comment.md
