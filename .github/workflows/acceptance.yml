@@ -75,3 +75,52 @@ jobs:
               labels: ['acceptance-regression'],
               body: `Weekly acceptance run failed the 100% recall gate.\n\nRun: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}\n\n\`\`\`\n${log}\n\`\`\``,
             });
+
+  # 第二基准：jest 跑器（graphql-tools, npm workspaces + babel-jest）。全程 ~5 分钟（装依赖 1min + 建图 10s + 10 变异 2min）。
+  # 2026-09-03 基线：recall 9/10 = 90%——已知引擎缺口（测试经 node_modules/graphql-yoga 再由 jest
+  # moduleNameMapper 映射回 packages/executor/src，引擎无此边）。缺口修复前 continue-on-error 只报不拦；
+  # 修复后删掉 continue-on-error 让它成为硬门槛。
+  mutation-recall-jest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: bun install
+
+      - name: Clone benchmark repo (graphql-tools)
+        run: git clone --depth 400 https://github.com/ardatan/graphql-tools.git /tmp/graphql-tools
+
+      - name: Install benchmark deps
+        working-directory: /tmp/graphql-tools
+        env:
+          PUPPETEER_SKIP_DOWNLOAD: "true"
+        run: npm install --ignore-scripts --no-audit --no-fund
+
+      - name: Build graph
+        run: |
+          bun run src/cli.ts /tmp/graphql-tools --db /tmp/graphql-tools.db
+          python3 -c "
+          import sqlite3
+          c = sqlite3.connect('/tmp/graphql-tools.db')
+          files, nodes, edges = (c.execute(q).fetchone()[0] for q in
+            ['SELECT COUNT(*) FROM files', 'SELECT COUNT(*) FROM nodes', 'SELECT COUNT(*) FROM edges'])
+          print(f'files={files} nodes={nodes} edges={edges}')
+          # 2026-09-03 基线 files=353 edges=9419
+          assert files > 300, f'file count regression: {files} < 300'
+          assert edges > 8000, f'edge count regression: {edges} < 8000'
+          "
+
+      - name: Mutation testing (jest) — recall must be 100%
+        run: |
+          python3 eval/mutation_check.py /tmp/graphql-tools /tmp/graphql-tools.db "${{ github.event.inputs.mutants || 10 }}" 2>&1 | tee /tmp/mutation-jest.log
+          RECALL=$(grep -oP '^recall: \d+/\d+ = \K\d+' /tmp/mutation-jest.log || echo "0")
+          tail -12 /tmp/mutation-jest.log >> "$GITHUB_STEP_SUMMARY"
+          if [ "$RECALL" != "100" ]; then
+            echo "::error::jest benchmark recall $RECALL% — below the 100% gate"
+            exit 1
+          fi

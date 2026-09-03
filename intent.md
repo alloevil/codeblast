@@ -102,7 +102,8 @@ M4 未达标的修复方向（已开工/待做）:
 ## 明确不做（v1）
 
 - 跨服务/跨仓库边（图模型预留节点类型，边不填）
-- 图编辑器 / 协作画布（不与 CodeViz 拼画布交互）
+- 自由画布/协作画布（不与 CodeViz 拼画布交互）。【2026-09-03 更正】轻量 overlay 编辑
+  （模块改名/合并/隐藏 → overlay JSON 落盘）已随 PR #12 上线,未按流程先改本条,记为流程违规。
 - Java（TS 之后再议）
 - Python 函数级 Impact（方案 B，2026-08-27 拍板）：Python 只建高置信边
   （import/类与函数定义/直接调用），支撑 Architecture Map 与文件级 Change Map；
@@ -115,6 +116,45 @@ M4 未达标的修复方向（已开工/待做）:
 - 通用代码检索 MCP（不与 Augment 拼 context engine）
 - 代码健康评分（CodeScene 地盘）
 - 自研索引器（scip-typescript 不顺手则 wrap 或提 PR，fork 是最后手段，重写禁止）
+
+## 2026-09-03 拍板：精确率与验收加固（A+B 全做）
+
+目标（召回门 100% 不变,任一项使 30 变异召回 <100% 即回滚）:
+- A1 精确率: 接口方法扇出按接收者窄类型收窄;barrel 仅纯 re-export 时按名剪枝（有副作用/顶层语句则保守）。
+  验收: tRPC 30 变异,召回 30/30,call 通道精确率 0.744 → 目标 ≥0.80;全量 0.36 → ≥0.5。
+  【2026-09-03 结果: 数据否决,引擎不改】离线复刻 BFS 在 15 变异集上实验:
+  (1) 纯 re-export barrel（241 文件/907 imports 边,文件内零声明）按名剪枝 → router.ts#lazy 预测 139 < 真实失败 154,
+      必然漏报 ≥15;原因同 PR #8: lazy 变异击穿 initTRPC 初始化链,名字绑定不描述执行依赖。
+  (2) 接口扇出 conservative 边全库仅 3 条,收窄收益≈0。
+  (3) call 通道低精确率三例（WsClient.close 0.027 等）的 FP 全经 testServerAndClientResource 等测试助手 hub 扇出（1 节点→196 测试）,
+      是真实可达依赖;差距属"影响集 vs 变异杀伤集"固有,非图谱错误。结论: 精确率 0.744 为当前方法上界附近,不再以精确率为优化目标。
+- A2 独立盲评重跑: 现模型任评审人,同一 50 提交窗口,数字如实记录（允许下降）。
+  【2026-09-03 结果: 1/5 = 20% ❌ 四轮轨迹 25% → 75% → 57% → 20%】同窗口 skip=100（上次 7 评论 → 现 5 评论,
+  scripts/辅助区修复使 2 条旧 noise 静默,静默抽查 4/5 正确,漏 4217a73 www/ 新增 import+函数）。
+  （4217a73 静默为设计行为: www/ 属辅助区,上轮正因该类提交被评 noise 而降权,评审人未知此规则。）
+  评级: useful 1（d92cc45 参数新增）、noise 1（41723ce packages/tests 助手 2 行标为"公共 API"）、
+  misleading 3——全部同一根因,与上轮评审人口径不同（上轮不计类型面）:
+  (a) 接口/类型字段增删不进 signature（bc215fe 4 个导出类型加 batchIndex、7b6e624 experimental_encoder）→ 报"↻0/无结构变更";
+  (b) 参数类型拓宽不算签名变更（9d4b3b9 TRPCClientError.from opts 加 cause）;
+  (c) `export const x: T = {…}` 对象常量不建节点（jsonEncoder 两处漏,已核 nodes 表）→ "client +0" 错误;
+  (d) "公共 API 面"标题未按导出可达性限定;闭包局部函数（handle/originalOn）报为新依赖。
+  30 余处 file:line 全部核实准确;调用链/受影响测试整数无锚点不可核。
+  定性: 数字下降主因是评审口径迁移到"TS 库的接口字段即 API",暴露引擎既有口径盲区,非本轮回归。
+  候选修复（待拍板）: 接口/类型别名成员文本进 signature;对象常量导出建 node;API 面标题按 exported 过滤。
+- A3 archmap-html 客户端脚本拆出为独立文件,构建时内联;行为零变化,截图对拍。
+  【2026-09-03 完成】src/archmap-html.ts 739→378 行,src/archmap-client.js 361 行;<script> 体除 DATA 行位置外字节相同;
+  浏览器验证 tabby 16 节点→下钻 74,零 pageerror。5 个 showcase 已重生成。
+- A4 bun test 快测 ≥20 条,每条对准一个已知 bug 或契约（scripts/ 非辅助区、WAL、forFiles 字段、重命名匹配、分级、静默判定）。
+  【2026-09-03 完成】55 pass / 0 fail / 1.1s,5 文件;静默判定纯函数抽到 src/pr-silence.ts（决策字节不变）。
+- B: 变异 harness 支持 jest 并接入第二基准仓;PR bot 工作流预构建产物;盲区图例口径澄清。
+  【2026-09-03 结果】第二基准 ardatan/graphql-tools（npm workspaces + babel-jest,353 文件/2006 节点/9419 边）,
+  10 变异召回 9/10 = 90%,mean precision 0.354（/tmp/mutation-2026-09-03-graphql-tools-n10.json）。
+  漏报 1 例 executor.ts#execute,漏 4 个测试文件: 它们 import 第三方 `graphql-yoga`（node_modules）,
+  该包内部 require("@graphql-tools/executor"),jest moduleNameMapper 把它映射回 packages/executor/src。
+  路径 test → node_modules → 自发布包名 → 工作区源码,不经任何仓内 import 语句,引擎无此边。
+  定性: 引擎既有盲区（非本轮改动引入,tRPC 15/15 不受影响）,超出"仓内静态可分析 TS"承诺口径。
+  候选修复（待拍板,本轮不做）: 对外部包读取其 package.json dependencies,与工作区包名相交 → conservative imports 边。
+明确不做: 跨服务边、Java、npm publish（需用户凭据）。
 
 ## 风险前三
 

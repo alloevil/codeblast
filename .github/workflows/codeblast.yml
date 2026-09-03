@@ -26,7 +26,19 @@ jobs:
           elif [ -f package-lock.json ]; then npm ci --ignore-scripts
           fi
       - name: Get codeblast
-        run: git clone --depth 1 https://github.com/alloevil/codeblast /tmp/codeblast && cd /tmp/codeblast && bun install
+        run: |
+          git clone --depth 1 https://github.com/alloevil/codeblast /tmp/codeblast
+          echo "lock=$(sha256sum /tmp/codeblast/bun.lock | cut -c1-16)" >> "$GITHUB_OUTPUT"
+        id: codeblast
+      # 依赖按 bun.lock 哈希缓存；命中时跳过 bun install（原每 PR ~40s）
+      - uses: actions/cache@v4
+        id: codeblast-deps
+        with:
+          path: /tmp/codeblast/node_modules
+          key: codeblast-deps-${{ runner.os }}-${{ steps.codeblast.outputs.lock }}
+      - name: Install codeblast deps
+        if: steps.codeblast-deps.outputs.cache-hit != 'true'
+        run: cd /tmp/codeblast && bun install --frozen-lockfile
       - name: Analyze
         id: analyze
         run: |
