@@ -177,7 +177,8 @@ A2 同窗口 5 条评论重放,bc215fe/9d4b3b9/7b6e624 各出现对应类型面�
   bc215fe 出现 3 条接口"成员变化 … batchIndex"; 9d4b3b9 出现 `from` 公共 API 面 `cause?: Error` 拓宽;
   7b6e624 出现 `Encoder`(interface) / `jsonEncoder`(const) 新增符号,`handle`/`originalOn` 闭包局部依赖噪音 5 → 0;
   41723ce 标题从"公共 API 面"改为"测试助手签名变更"。
-- 顺带发现未修（汇报不动）：7b6e624 影响半径表里 `jsonEncoder` 出现两行（client/server 各一个同名 const,表只显示 name 不带路径）。
+- 残余处理（用户：「残余的问题处理下」）：影响半径表加「位置」列（file:line 链接,与函数体内改动表同构）,7b6e624 两个 `jsonEncoder` 按 wsEncoder.ts:24 / wsClient/encoder.ts:5 区分;
+  展示页按新引擎重生成 tabby/trpc/codeblast（sgp 为 Python,本轮不涉及）：仅新增 const 节点（17/323/5）,其余 kind 计数逐项一致,impact-demo 半径 direct 5 / indirect 302 / tests 228 与旧页一致。
 
 ## 风险前三
 
