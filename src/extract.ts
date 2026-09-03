@@ -31,7 +31,18 @@ function injectWorkspacePaths(base: ts.CompilerOptions, pkgs: Map<string, string
   }
   return options;
 }
-/** 仓库一级/二级目录里的 package.json → name 映射（yarn/pnpm 未链接 workspace 时的解析兜底）。 */
+/** 根 package.json 的 workspaces 字段（数组或 {packages:[]}），只支持尾部 `*` 通配（`packages/loaders/*`）。 */
+function workspaceGlobs(repoRoot: string): string[] {
+  try {
+    const pj = JSON.parse(fs.readFileSync(path.join(repoRoot, "package.json"), "utf8")) as { workspaces?: string[] | { packages?: string[] } };
+    const ws = Array.isArray(pj.workspaces) ? pj.workspaces : pj.workspaces?.packages;
+    return Array.isArray(ws) ? ws.filter((w): w is string => typeof w === "string" && !w.startsWith("!")) : [];
+  } catch { return []; }
+}
+/**
+ * workspace 包名 → 目录。优先根 package.json workspaces（graphql-tools `packages/loaders/*` 三层深,盲扫两层漏掉
+ * code-file-loader → jest 变异漏报）;再盲扫一级/二级目录兜底（无 workspaces 字段的 yarn/pnpm 仓）。
+ */
 function discoverWorkspacePackages(repoRoot: string): Map<string, string> {
   const out = new Map<string, string>();
   const tryAdd = (dir: string) => {
@@ -44,6 +55,13 @@ function discoverWorkspacePackages(repoRoot: string): Map<string, string> {
       }
     } catch { /* 坏 package.json 忽略 */ }
   };
+  for (const g of workspaceGlobs(repoRoot)) {
+    const star = g.endsWith("/*");
+    const base = path.join(repoRoot, star ? g.slice(0, -2) : g);
+    if (!fs.existsSync(base)) continue;
+    if (!star) { tryAdd(base); continue; }
+    for (const sub of fs.readdirSync(base, { withFileTypes: true })) if (sub.isDirectory()) tryAdd(path.join(base, sub.name));
+  }
   for (const entry of fs.readdirSync(repoRoot, { withFileTypes: true })) {
     if (!entry.isDirectory() || entry.name === "node_modules" || entry.name.startsWith(".")) continue;
     const dir = path.join(repoRoot, entry.name);
@@ -100,6 +118,7 @@ export class Extractor {
     ex.workspacePkgs = discoverWorkspacePackages(repoRoot);
     ex.implementers = new Map();
     ex.pendingBindings = new Map();
+    ex.reentryCache = new Map();
     ex.parsedConfig = { ...parsed, fileNames };
     ex.programBuilt = false;
     return ex;
@@ -168,7 +187,16 @@ export class Extractor {
         const spec = stmt.moduleSpecifier;
         if (spec && ts.isStringLiteral(spec)) {
           const resolved = this.resolveModule(spec.text, sf.fileName);
-          if (resolved) {
+          if (!resolved) {
+            // 外部包回流：第三方包依赖了本仓自发布的 workspace 包（jest moduleNameMapper / 链接场景下执行仓内源码）。
+            // graphql-tools 基准漏报 executor#execute：test → graphql-yoga(node_modules) → @graphql-tools/executor → packages/executor/src。
+            for (const entry of this.externalReentry(spec.text, sf.fileName)) {
+              edges.push({
+                src: relPath, dst: this.rel(entry), kind: "imports",
+                file: relPath, line: lineOf(stmt), confidence: "conservative", src_file: relPath,
+              });
+            }
+          } else {
             edges.push({
               src: relPath, dst: this.rel(resolved), kind: "imports",
               file: relPath, line: lineOf(stmt), confidence: "exact", src_file: relPath,
@@ -232,7 +260,23 @@ export class Extractor {
         node.initializer &&
         (ts.isArrowFunction(node.initializer) || ts.isFunctionExpression(node.initializer))
       ) return isTest ? "test" : "function";
+      // 顶层导出的非函数 const（对象/字面量/调用结果）= API 面（盲评 7b6e624 jsonEncoder 漏报）。
+      // 非导出 const 不建节点：无边可挂,只会给 diff 增加 +/- 噪音。
+      if (
+        ts.isVariableDeclaration(node) && ts.isVariableDeclarationList(node.parent) &&
+        ts.isVariableStatement(node.parent.parent) && ts.isSourceFile(node.parent.parent.parent) &&
+        this.isExported(node)
+      ) return "const";
       return undefined;
+    };
+    // 类型面签名：接口/类型别名/枚举成员文本（成员增删改 = API 面变化;盲评 bc215fe/7b6e624 漏报根因）
+    const norm = (s: string) => s.replace(/\s+/g, " ").trim().slice(0, 200);
+    const typeSignature = (node: ts.Node): string => {
+      if (ts.isInterfaceDeclaration(node)) return norm(node.members.map((m) => m.getText(sf)).join(" "));
+      if (ts.isTypeAliasDeclaration(node)) return norm(node.type.getText(sf));
+      if (ts.isEnumDeclaration(node)) return norm(node.members.map((m) => m.getText(sf)).join(" "));
+      if (ts.isVariableDeclaration(node)) return norm(node.type ? node.type.getText(sf) : node.initializer?.getText(sf) ?? "");
+      return "";
     };
 
     const visit = (node: ts.Node) => {
@@ -249,10 +293,15 @@ export class Extractor {
           ? node.initializer
           : undefined;
         if (fnLike) signature = fnLike.parameters.map((p) => p.getText(sf)).join(", ").slice(0, 200);
+        else signature = typeSignature(node);
+        // 方法的导出性继承所属类（修饰符只在类上;否则 555 个 tRPC 方法全 exported=0,public static 签名变更被过滤）
+        const exported = ts.isMethodDeclaration(node) && ts.isClassDeclaration(node.parent)
+          ? this.isExported(node.parent) && !(ts.getCombinedModifierFlags(node) & (ts.ModifierFlags.Private | ts.ModifierFlags.Protected))
+          : this.isExported(node);
         nodes.push({
           id, kind, name, file: relPath,
           line: lineOf(node), end_line: endLineOf(node),
-          exported: this.isExported(node) ? 1 : 0, signature, src_file: relPath,
+          exported: exported ? 1 : 0, signature, src_file: relPath,
         });
         edges.push({
           src: relPath, dst: id, kind: "contains",
@@ -371,6 +420,14 @@ export class Extractor {
 
     const dst = this.nodeIdOfDecl(decl);
     if (!dst) return;
+    // 调用目标是无节点的非函数变量（闭包局部 `const handle = app.getRequestHandler()` / 非导出顶层 const）：
+    // 边必悬空,只会在 PR 评论"新增依赖"里刷 `prodServer.ts → handle` 噪音（盲评 7b6e624）。
+    // 与 declKindOf 的 const 建节点规则同构;声明可解析,不算盲区。
+    if (
+      ts.isVariableDeclaration(decl) &&
+      !(decl.initializer && (ts.isArrowFunction(decl.initializer) || ts.isFunctionExpression(decl.initializer))) &&
+      !(ts.isVariableDeclarationList(decl.parent) && ts.isVariableStatement(decl.parent.parent) && ts.isSourceFile(decl.parent.parent.parent) && this.isExported(decl))
+    ) return;
 
     const push = (target: string, confidence: Confidence) =>
       edges.push({ src: caller, dst: target, kind: "calls", file: relPath, line, confidence, src_file: relPath });
@@ -395,6 +452,32 @@ export class Extractor {
     }
 
     push(dst, "exact");
+  }
+
+  /** 外部包 package.json 的 dependencies/peerDependencies ∩ workspace 包名 → 工作区入口文件（仅一层,不递归;结果按包缓存）。 */
+  private reentryCache = new Map<string, string[]>();
+  private externalReentry(specifier: string, fromFile: string): string[] {
+    if (specifier.startsWith(".") || specifier.startsWith("/") || specifier.startsWith("node:")) return [];
+    const pkgName = specifier.startsWith("@") ? specifier.split("/").slice(0, 2).join("/") : specifier.split("/")[0];
+    if (this.workspacePkgs.has(pkgName)) return [];
+    const hit = this.reentryCache.get(pkgName);
+    if (hit) return hit;
+    const out: string[] = [];
+    const r = ts.resolveModuleName(`${pkgName}/package.json`, fromFile, { ...this.program.getCompilerOptions(), resolveJsonModule: true, moduleResolution: ts.ModuleResolutionKind.Bundler }, ts.sys);
+    const pjPath = r.resolvedModule?.resolvedFileName;
+    if (pjPath && pjPath.includes("node_modules")) {
+      try {
+        const pj = JSON.parse(fs.readFileSync(pjPath, "utf8")) as { dependencies?: Record<string, string>; peerDependencies?: Record<string, string> };
+        for (const dep of new Set([...Object.keys(pj.dependencies ?? {}), ...Object.keys(pj.peerDependencies ?? {})])) {
+          const dir = this.workspacePkgs.get(dep);
+          if (!dir) continue;
+          const entry = [path.join(dir, "src", "index.ts"), path.join(dir, "index.ts"), path.join(dir, "src", "index.tsx")].find((f) => fs.existsSync(f));
+          if (entry) out.push(entry);
+        }
+      } catch { /* 坏 package.json 忽略 */ }
+    }
+    this.reentryCache.set(pkgName, out);
+    return out;
   }
 
   private resolveModule(specifier: string, fromFile: string): string | undefined {

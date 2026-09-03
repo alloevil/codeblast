@@ -15,6 +15,7 @@ export const NODE_KINDS = [
   "method",
   "class",
   "interface",
+  "const", //     顶层非函数变量声明（对象常量/字面量/调用结果;导出即 API 面）
   "file",
   "module", // L2 折叠层产出，L1 不写
   "test",
@@ -48,6 +49,7 @@ export interface NodeRow {
   end_line: number;
   exported: 0 | 1;
   /** 可调用体的参数签名文本（截断 200 字符）;非可调用节点为空串。签名变更检测用。 */
+  /** interface/type/enum = 成员文本规范化;const = 类型标注或初始化器文本。 */
   signature: string;
   src_file: string; // 增量失效键
 }

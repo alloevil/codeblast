@@ -155,6 +155,29 @@ M4 未达标的修复方向（已开工/待做）:
   定性: 引擎既有盲区（非本轮改动引入,tRPC 15/15 不受影响）,超出"仓内静态可分析 TS"承诺口径。
   候选修复（待拍板,本轮不做）: 对外部包读取其 package.json dependencies,与工作区包名相交 → conservative imports 边。
 明确不做: 跨服务边、Java、npm publish（需用户凭据）。
+## 2026-09-03 拍板：类型面检测 + 外部包回流边（用户：「1、2 都做」）
+
+目标: 修 A2 盲评暴露的口径盲区（20% 的 3 条 misleading）与 jest 基准 1 例漏报,不改评级/静默阈值本身。
+- C1 类型面进图:
+  - `export const x: T = {…}` / 顶层非函数 const（对象、字面量、调用结果）→ kind=`const` 节点,signature=声明类型标注或初始化器首 200 字符。
+  - interface / type alias / enum 的 signature = 成员文本（去空白规范化,首 200 字符）;成员增删改 → signatureChanged。
+  - 函数签名文本改为参数**含类型**的规范化文本（已含,参数类型拓宽已能检出——9d4b3b9 漏报根因是 `TRPCClientError.from` 是 `public static` 方法,exported 位取自方法自身修饰符=0）: 方法 exported 继承所属类。
+  - "公共 API 面"标题仅对 exported=1 节点使用;非导出签名变更归入"函数体内改动"列。
+- C2 外部包回流边: 对解析进 node_modules 的 import,读该包 package.json 的 dependencies/peerDependencies,与工作区包名相交 →
+  importer → 工作区包入口 `imports` 边,confidence=conservative,line=import 行。仅一层,不递归。
+验收: 15 变异 tRPC 召回 100%（红线）;graphql-tools 10 变异召回 10/10;bun test 全绿并新增对准每条的用例;
+A2 同窗口 5 条评论重放,bc215fe/9d4b3b9/7b6e624 各出现对应类型面条目。
+明确不做: 接口成员级 diff 展示（只报"成员变化"整体）;递归外部依赖链;修改静默阈值。
+【2026-09-03 结果】
+- bun test 61 pass / 0 fail（新增 6 条：接口/type 成员签名、导出 const 节点、方法 exported 继承类、外部包回流边、闭包局部变量不悬边、接口 signatureChanged）。
+- tRPC 15 变异召回 13/13 = 100%（2 个未被测试杀死不计;/tmp/mutation-2026-09-03-trpc-n15.json）。方法 exported=1 从 0 → 164。
+- graphql-tools 10 变异召回 10/10 = 100%（此前 90%）。修了两处：回流边（52 条 conservative imports,原漏报 executor#execute 的 4 个 yoga 测试现可达）;
+  workspace 发现改读根 package.json `workspaces`（`packages/loaders/*` 三层深,盲扫漏掉 code-file-loader,边 9419 → 9644）。
+- A2 同窗口重放（skip 100,50 commit）：5 评论 / 45 静默 / 0 失败,静默决策与 A2 逐条一致。
+  bc215fe 出现 3 条接口"成员变化 … batchIndex"; 9d4b3b9 出现 `from` 公共 API 面 `cause?: Error` 拓宽;
+  7b6e624 出现 `Encoder`(interface) / `jsonEncoder`(const) 新增符号,`handle`/`originalOn` 闭包局部依赖噪音 5 → 0;
+  41723ce 标题从"公共 API 面"改为"测试助手签名变更"。
+- 顺带发现未修（汇报不动）：7b6e624 影响半径表里 `jsonEncoder` 出现两行（client/server 各一个同名 const,表只显示 name 不带路径）。
 
 ## 风险前三
 

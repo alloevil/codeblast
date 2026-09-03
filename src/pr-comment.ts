@@ -11,6 +11,7 @@
 import { Database } from "bun:sqlite";
 import path from "node:path";
 import { graphDiff, foldToModules } from "./graph-diff";
+import type { GraphDiff } from "./graph-diff";
 import { impact } from "./impact";
 import { AUX_RE, TEST_RE, bodySignalCount, coreNamedCount, structuralTotal, type BodyChange } from "./pr-silence";
 
@@ -130,19 +131,28 @@ if (diff.visibilityChanged.length > 0) {
   }
   lines.push(``);
 }
-// 导出函数签名变更 = API 面变化（终验盲区: 加参被记"结构未变"）
-if (diff.signatureChanged.length > 0) {
-  lines.push(`### 签名变更（公共 API 面）`, ``);
-  for (const s of diff.signatureChanged.slice(0, 10)) {
-    // 从首个差异点展示,避免公共前缀截断导致 from/to 显示相同
-    let d = 0;
-    while (d < s.from.length && d < s.to.length && s.from[d] === s.to[d]) d++;
-    const ctx = Math.max(0, d - 15);
-    const fromView = (ctx > 0 ? "…" : "") + s.from.slice(ctx, ctx + 70) + (s.from.length > ctx + 70 ? "…" : "");
-    const toView = (ctx > 0 ? "…" : "") + s.to.slice(ctx, ctx + 70) + (s.to.length > ctx + 70 ? "…" : "");
-    lines.push(`- \`${s.name}\`: \`(${fromView})\` → \`(${toView})\` （${link(s.file, s.line)}）`);
-  }
+// 导出符号签名变更 = API 面变化（终验盲区: 加参被记"结构未变";盲评: 接口字段/类型拓宽/对象常量）。
+// "公共 API 面"标题只给非测试目录（41723ce: packages/tests 助手被标公共 API 是 noise）。
+const sigView = (s: GraphDiff["signatureChanged"][number]): string => {
+  // 从首个差异点展示,避免公共前缀截断导致 from/to 显示相同
+  let d = 0;
+  while (d < s.from.length && d < s.to.length && s.from[d] === s.to[d]) d++;
+  const ctx = Math.max(0, d - 15);
+  const clip = (t: string) => (ctx > 0 ? "…" : "") + t.slice(ctx, ctx + 70).replace(/`/g, "'") + (t.length > ctx + 70 ? "…" : "");
+  // 可调用体显示为参数列表 (…);类型面（interface/const）显示成员/类型文本
+  const wrap = s.kind === "interface" || s.kind === "const" ? (t: string) => t : (t: string) => `(${t})`;
+  const what = s.kind === "interface" ? "成员变化" : s.kind === "const" ? "类型变化" : "";
+  return `- \`${s.name}\`${what ? ` ${what}` : ""}: \`${wrap(clip(s.from))}\` → \`${wrap(clip(s.to))}\` （${link(s.file, s.line)}）`;
+};
+const apiSig = diff.signatureChanged.filter((s) => !TEST_RE.test(s.file));
+const testSig = diff.signatureChanged.filter((s) => TEST_RE.test(s.file));
+if (apiSig.length > 0) {
+  lines.push(`### 签名变更（公共 API 面）`, ``, ...apiSig.slice(0, 10).map(sigView));
+  if (apiSig.length > 10) lines.push(`- …及另外 ${apiSig.length - 10} 项`);
   lines.push(``);
+}
+if (testSig.length > 0) {
+  lines.push(`### 测试助手签名变更`, ``, ...testSig.slice(0, 5).map(sigView), ``);
 }
 
 if (diff.edgesAdded.length > 0) {
@@ -170,7 +180,7 @@ for (const n of prodNodesAdded.slice(0, 15)) {
     impactRows.push(`| \`${n.name}\` | ${n.kind} | ${callItems.length} | ${tests} |`);
     // 目标所在文件有盲区时,"无覆盖"可能是动态派发接不上（新增测试经回调覆盖）——降级为存疑
     const blind = r.blind_spot_count > 0;
-    if (tests === 0 && n.kind !== "interface") {
+    if (tests === 0 && n.kind !== "interface" && n.kind !== "const") {
       uncovered.push(`- \`${n.name}\` （${link(n.file, n.line)}）${blind ? " — 所在文件含动态调用,覆盖可能未被静态识别" : ""}`);
     }
   } catch { /* 模块级 id 无节点 */ }

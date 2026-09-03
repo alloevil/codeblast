@@ -23,7 +23,8 @@ export interface GraphDiff {
   edgesRemoved: EdgeDelta[];
   /** export 可见性变化：同一符号 exported 位翻转（API 面变化,静默不一致案例 62c6ab0） */
   visibilityChanged: { id: string; name: string; kind: string; file: string; line: number; nowExported: boolean }[];
-  /** 导出可调用体的参数签名变更（API 面变化;终验 3 例盲区: buildConnectionMessage 等加参被记"结构未变"） */
+  /** 导出符号签名变更：函数参数列表 / 接口·类型·枚举成员 / const 类型（方法导出性继承所属类）。
+   *  终验 buildConnectionMessage 加参;盲评 bc215fe batchIndex 字段、9d4b3b9 public static 方法类型拓宽。 */
   signatureChanged: { id: string; name: string; kind: string; file: string; line: number; from: string; to: string }[];
 }
 
