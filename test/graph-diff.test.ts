@@ -29,6 +29,13 @@ describe("graph-diff", () => {
     expect(d.nodesRemoved).toEqual([]);
   });
 
+  test("exported interface member change is a signatureChanged (blind-review bc215fe: batchIndex field added)", () => {
+    const a = memGraph([{ id: "a.ts#Opts", kind: "interface", exported: 1, signature: "id: string" }]);
+    const b = memGraph([{ id: "a.ts#Opts", kind: "interface", exported: 1, signature: "id: string; batchIndex?: number" }]);
+    const d = graphDiff(a, b);
+    expect(d.signatureChanged).toEqual([{ id: "a.ts#Opts", name: "Opts", kind: "interface", file: "a.ts", line: 1, from: "id: string", to: "id: string; batchIndex?: number" }]);
+  });
+
   test("same-file rename requires same kind", () => {
     const a = memGraph([{ id: "a.ts#Foo", kind: "class", line: 10 }]);
     const b = memGraph([{ id: "a.ts#foo", kind: "function", line: 10 }]);

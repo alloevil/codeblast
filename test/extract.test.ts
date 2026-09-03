@@ -11,6 +11,19 @@ const LIB = `export interface Greeter { greet(n: string): string }
 export class EnGreeter implements Greeter { greet(n: string) { return "hi " + n; } }
 export class FrGreeter implements Greeter { greet(n: string) { return "salut " + n; } }
 export function helper(x: number): number { return x + 1; }
+export interface Encoder { encode(d: unknown): string;
+  decode(d: string): unknown }
+export type Mode = "a" | "b";
+export const jsonEncoder: Encoder = { encode: JSON.stringify, decode: JSON.parse };
+const localConst = { x: 1 };
+export class Box { static from(v: unknown): Box { return new Box(); } private hide() {} }
+export function outer() { const inner = { y: 2 }; const handle = mk(); handle(); const f = () => 1; f(); return inner; }
+function mk(): () => void { return () => {}; }
+`;
+/** 第三方包（node_modules）依赖了本仓 workspace 包 @ws/core：外部包回流边场景。 */
+const REENTRY = `import "third-party-lib";
+import { helper } from "./lib";
+export function useThird() { helper(2); }
 `;
 const MAIN = `import { helper, type Greeter } from "./lib";
 import { execSync } from "node:child_process";
@@ -37,6 +50,13 @@ beforeAll(() => {
   fs.writeFileSync(path.join(root, "src/lib.ts"), LIB);
   fs.writeFileSync(path.join(root, "src/main.ts"), MAIN);
   fs.writeFileSync(path.join(root, "src/main.test.ts"), TEST);
+  fs.writeFileSync(path.join(root, "src/reentry.ts"), REENTRY);
+  fs.mkdirSync(path.join(root, "packages/core/src"), { recursive: true });
+  fs.writeFileSync(path.join(root, "packages/core/package.json"), JSON.stringify({ name: "@ws/core" }));
+  fs.writeFileSync(path.join(root, "packages/core/src/index.ts"), "export const core = 1;\n");
+  fs.mkdirSync(path.join(root, "node_modules/third-party-lib"), { recursive: true });
+  fs.writeFileSync(path.join(root, "node_modules/third-party-lib/package.json"), JSON.stringify({ name: "third-party-lib", main: "index.js", dependencies: { "@ws/core": "*", "left-pad": "*" } }));
+  fs.writeFileSync(path.join(root, "node_modules/third-party-lib/index.js"), "module.exports = {};\n");
   ex = new Extractor(path.join(root, "tsconfig.json"), root);
   ex.collectImplementers();
   byFile = new Map(ex.sourceFiles().map((sf) => [ex.rel(sf.fileName), ex.extractFile(sf)]));
@@ -80,6 +100,40 @@ describe("extract (integration-lite)", () => {
   test("exported callable node records exported=1 and parameter-list signature text", () => {
     const n = byFile.get("src/main.ts")!.nodes.find((n) => n.id === "src/main.ts#run");
     expect(n).toMatchObject({ kind: "function", exported: 1, signature: "g: Greeter, obj: Record<string, () => void>, key: string" });
+  });
+
+  test("interface / type alias signature = normalised member text, so field additions surface as signatureChanged", () => {
+    const lib = byFile.get("src/lib.ts")!.nodes;
+    expect(lib.find((n) => n.id === "src/lib.ts#Encoder")).toMatchObject({ kind: "interface", exported: 1, signature: "encode(d: unknown): string; decode(d: string): unknown" });
+    expect(lib.find((n) => n.id === "src/lib.ts#Mode")?.signature).toBe('"a" | "b"');
+  });
+
+  test("top-level exported non-function const becomes kind=const with its type annotation; local/non-exported consts do not", () => {
+    const lib = byFile.get("src/lib.ts")!.nodes;
+    expect(lib.find((n) => n.id === "src/lib.ts#jsonEncoder")).toMatchObject({ kind: "const", exported: 1, signature: "Encoder" });
+    expect(lib.find((n) => n.name === "localConst")).toBeUndefined();
+    expect(lib.find((n) => n.name === "inner")).toBeUndefined();
+  });
+
+  test("method exported bit inherits from the enclosing exported class, except private/protected members", () => {
+    const lib = byFile.get("src/lib.ts")!.nodes;
+    expect(lib.find((n) => n.id === "src/lib.ts#Box.from")).toMatchObject({ kind: "method", exported: 1, signature: "v: unknown" });
+    expect(lib.find((n) => n.id === "src/lib.ts#Box.hide")?.exported).toBe(0);
+  });
+
+  test("external package whose package.json depends on a workspace package yields a conservative imports edge back into the workspace entry", () => {
+    const r = byFile.get("src/reentry.ts")!;
+    const re = r.edges.filter((e) => e.kind === "imports" && e.confidence === "conservative");
+    expect(re).toEqual([{ src: "src/reentry.ts", dst: "packages/core/src/index.ts", kind: "imports", file: "src/reentry.ts", line: 1, confidence: "conservative", src_file: "src/reentry.ts" }]);
+    // 仓内 import 不受影响,仍是 exact
+    expect(r.edges.find((e) => e.kind === "imports" && e.dst === "src/lib.ts")?.confidence).toBe("exact");
+  });
+
+  test("calls to closure-local non-function variables emit neither a dangling edge nor a blind spot; local arrow fns still resolve", () => {
+    const r = byFile.get("src/lib.ts")!;
+    const fromOuter = r.edges.filter((e) => e.kind === "calls" && e.src === "src/lib.ts#outer").map((e) => e.dst).sort();
+    expect(fromOuter).toEqual(["src/lib.ts#f", "src/lib.ts#mk"]);
+    expect(r.blindSpots.filter((b) => b.line === 11)).toEqual([]); // outer 所在行
   });
 
   test("implements edges emitted from class heritage clauses", () => {
