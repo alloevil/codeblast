@@ -179,6 +179,7 @@ A2 同窗口 5 条评论重放,bc215fe/9d4b3b9/7b6e624 各出现对应类型面�
   41723ce 标题从"公共 API 面"改为"测试助手签名变更"。
 - 残余处理（用户：「残余的问题处理下」）：影响半径表加「位置」列（file:line 链接,与函数体内改动表同构）,7b6e624 两个 `jsonEncoder` 按 wsEncoder.ts:24 / wsClient/encoder.ts:5 区分;
   展示页按新引擎重生成 tabby/trpc/codeblast（sgp 为 Python,本轮不涉及）：仅新增 const 节点（17/323/5）,其余 kind 计数逐项一致,impact-demo 半径 direct 5 / indirect 302 / tests 228 与旧页一致。
+  trpc-change-demo（7b6e624 vs 163ec4e）也重生成：+14 → +21 符号,变更文件 7 → 9（新增 wsClient/encoder.ts、server/trpc.ts 两个 const 文件）。
 
 ## 风险前三
 
