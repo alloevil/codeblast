@@ -86,6 +86,8 @@ bun run <codeblast>/src/archmap-html.ts head.db --diff base.db --out change.html
 模块折叠图 + 循环依赖检测（红色虚线）+ 每模块盲区计数。
 HTML 版支持模块→文件→符号三层下钻，符号点击跳 GitHub 源码行。
 可选 `--overlay codeblast.overlay.json`：模块人话名/隐藏/归并（进 git，用户改过的名字不被覆盖）。
+交互图内置 **✎ 编辑模块** 模式：图上直接改名、合并（选中→"合并到…"→点目标）、隐藏，
+右侧实时生成 overlay JSON，可复制或下载为 `codeblast.overlay.json` 落盘持久化。
 
 ## 解读纪律（必须遵守）
 
