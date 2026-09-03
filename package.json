@@ -1,6 +1,6 @@
 {
   "name": "codeblast",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Know what breaks before you merge — mutation-tested code graph with architecture, change & impact maps. Evidence on every edge. For humans and AI agents.",
   "keywords": [
     "impact-analysis",
