@@ -313,6 +313,22 @@ const html = `<!DOCTYPE html>
   #toolbar button { background: var(--panel); color: var(--fg); border: 1px solid var(--border);
     border-radius: 8px; padding: 6px 14px; cursor: pointer; font-size: 13px; }
   #toolbar button:hover { border-color: var(--accent); }
+  #toolbar button.on { border-color: var(--accent); background: #1f6feb33; }
+  body.editing .node rect { cursor: text; }
+  body.editing .node.sel rect { stroke: #d29922; stroke-width: 3; }
+  .node.hidden-mod { opacity: 0.35; }
+  .node.hidden-mod rect { stroke-dasharray: 4 3; }
+  #editpanel { border-top: 1px solid var(--border); padding: 12px 0; margin-top: 12px; }
+  #editpanel input { width: 100%; background: #0d1117; color: var(--fg); border: 1px solid var(--border);
+    border-radius: 6px; padding: 6px 8px; font-size: 13px; margin: 4px 0 8px; }
+  #editpanel .row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+  #editpanel button { flex: 1; background: var(--panel); color: var(--fg); border: 1px solid var(--border);
+    border-radius: 6px; padding: 6px 8px; cursor: pointer; font-size: 12.5px; }
+  #editpanel button:hover { border-color: var(--accent); }
+  #editpanel button.primary { background: #1f6feb33; border-color: var(--accent); }
+  #editpanel pre { background: #0d1117; border: 1px solid var(--border); border-radius: 6px;
+    padding: 8px; font-size: 11px; max-height: 180px; overflow: auto; white-space: pre-wrap; }
+  #editpanel .tip { color: var(--dim); font-size: 12px; }
   .edge-label { fill: var(--dim); font-size: 10px; }
   .crumb { color: var(--accent); cursor: pointer; }
   #side h2 { font-size: 14px; margin: 8px 0; }
@@ -344,7 +360,7 @@ const html = `<!DOCTYPE html>
       <stop offset="0" stop-color="#1c2430"/><stop offset="1" stop-color="#151b23"/>
     </linearGradient>
   </defs><g id="viewport"></g></svg>
-  <div id="toolbar"><button onclick="toggleFit()">适配 / 100%</button> <button onclick="exportPNG()">导出 PNG</button></div></div>
+  <div id="toolbar"><button id="editbtn" onclick="toggleEdit()">✎ 编辑模块</button> <button onclick="toggleFit()">适配 / 100%</button> <button onclick="exportPNG()">导出 PNG</button></div></div>
 </div>
 <div id="side"><h2>概览</h2><div id="detail"></div>
   <p class="hint">点击模块下钻到文件层;点击文件查看符号。红色虚线 = 循环依赖。滚轮缩放,拖拽平移。</p>
@@ -411,8 +427,16 @@ function buildView() {
   if (view.scope === "modules") {
     return {
       key: "__modules__",
-      nodes: DATA.modules.map(m => ({ id: m.name, label: (DATA.moduleMeta[m.name]?.display ?? m.name), meta: m.files + " files" + blindLabel(m.blind), test: m.name === "tests", cyc: DATA.modEdges.some(e => e.cyclic && (e.src === m.name || e.dst === m.name)) })),
-      edges: DATA.modEdges.map(e => ({ src: e.src, dst: e.dst, w: e.w, cyclic: e.cyclic })),
+      nodes: DATA.modules.filter(m => !edits.merges[m.name] && (editing || !edits.hidden[m.name])).map(m => ({
+        id: m.name,
+        label: displayName(m.name),
+        meta: m.files + " files" + blindLabel(m.blind),
+        test: m.name === "tests",
+        cyc: DATA.modEdges.some(e => e.cyclic && (e.src === m.name || e.dst === m.name)),
+      })),
+      edges: DATA.modEdges
+        .map(e => ({ src: edits.merges[e.src] ?? e.src, dst: edits.merges[e.dst] ?? e.dst, w: e.w, cyclic: e.cyclic }))
+        .filter(e => e.src !== e.dst),
       crumb: "模块层 · " + DATA.modules.length + " modules",
     };
   }
@@ -495,7 +519,7 @@ function render() {
   v.nodes.forEach(n => {
     const p = pos[n.id];
     if (!p) return;
-    g += '<g class="node' + (n.test ? " test" : "") + (n.cyc ? " cyc" : "") + impactClass(n.id, view.scope === "modules") + '" data-id="' + esc(n.id) + '" onclick="clickNode(\\'' + n.id.replace(/'/g, "\\\\'") + '\\')" onmouseenter="hl(\\'' + n.id.replace(/'/g, "\\\\'") + '\\',1)" onmouseleave="hl(\\'' + n.id.replace(/'/g, "\\\\'") + '\\',0)">'
+    g += '<g class="node' + (n.test ? " test" : "") + (n.cyc ? " cyc" : "") + impactClass(n.id, view.scope === "modules") + (n.id === selected ? " sel" : "") + (edits.hidden[n.id] ? " hidden-mod" : "") + '" data-id="' + esc(n.id) + '" onclick="clickNode(\\'' + n.id.replace(/'/g, "\\\\'") + '\\')" onmouseenter="hl(\\'' + n.id.replace(/'/g, "\\\\'") + '\\',1)" onmouseleave="hl(\\'' + n.id.replace(/'/g, "\\\\'") + '\\',0)">'
        + '<rect x="' + p.x + '" y="' + p.y + '" width="' + p.w + '" height="' + p.h + '"/>'
        + '<rect class="accentbar" x="' + p.x + '" y="' + (p.y + 10) + '" width="3.5" height="' + (p.h - 20) + '"/>'
        + '<text x="' + (p.x + p.w / 2) + '" y="' + (p.y + 24) + '" text-anchor="middle">' + esc(n.label) + '</text>'
@@ -559,13 +583,131 @@ function renderSide() {
     let h = "";
     if (cyc.length) h += '<div class="cyclic-banner">⚠ 检测到循环依赖: ' + cyc.map(e => esc(e.src)+" ⇄ "+esc(e.dst)).filter((v,i,a)=>a.indexOf(v)===i).slice(0,3).join("; ") + '</div>';
     h += DATA.modules.map(m => '<div class="item" onclick="drill(\\''+m.name.replace(/'/g,"\\\\'")+'\\')"><span>'+esc(DATA.moduleMeta[m.name]?.display ?? m.name)+'</span>'+(DATA.moduleMeta[m.name]?.desc ? '<div class="kind">'+esc(DATA.moduleMeta[m.name].desc)+'</div>' : '')+'<span class="kind">'+m.files+' files'+'<span class="blind">'+blindLabel(m.blind)+'</span>'+'</span></div>').join("");
-    detail.innerHTML = h;
+    detail.innerHTML = renderEditPanel() + h;
   }
 }
 
 function clickNode(id) {
+  if (editing && view.scope === "modules") { selectForEdit(id); return; }
   if (view.scope === "modules") drill(id);
   else showFile(id);
+}
+
+// ---- overlay 编辑模式：图上改名/合并/隐藏,导出 codeblast.overlay.json ----
+let editing = false;
+let selected = null;
+let mergeSource = null;
+// 会话内编辑态（不改 DATA,渲染时叠加）
+const edits = { names: {}, hidden: {}, merges: {} };
+
+function toggleEdit() {
+  editing = !editing;
+  selected = null;
+  document.body.classList.toggle("editing", editing);
+  document.getElementById("editbtn").classList.toggle("on", editing);
+  if (editing && view.scope !== "modules") goHome();
+  else render();
+}
+
+function selectForEdit(id) {
+  if (selected === id) { selected = null; render(); return; }
+  // 合并意图：仅当上一个选中项处于"待合并"状态（用户按了合并按钮）才触发,
+  // 避免单纯切换选中被误判为合并（实测 bug: 改完名切到别的模块 → 被合并掉）
+  if (mergeSource && mergeSource !== id) {
+    if (confirm(\`把「\${displayName(mergeSource)}」并入「\${displayName(id)}」?\`)) {
+      edits.merges[mergeSource] = id;
+      mergeSource = null;
+      selected = id;
+      render();
+      return;
+    }
+    mergeSource = null;
+  }
+  selected = id;
+  render();
+}
+
+function startMerge() {
+  if (!selected) return;
+  mergeSource = selected;
+  render();
+}
+
+function displayName(m) {
+  return edits.names[m] ?? DATA.moduleMeta[m]?.display ?? m;
+}
+
+function applyEditName() {
+  if (!selected) return;
+  const v = document.getElementById("editname").value.trim();
+  if (v) edits.names[selected] = v; else delete edits.names[selected];
+  render();
+}
+
+function toggleHidden() {
+  if (!selected) return;
+  if (edits.hidden[selected]) delete edits.hidden[selected];
+  else edits.hidden[selected] = true;
+  render();
+}
+
+function unmerge() {
+  if (!selected) return;
+  delete edits.merges[selected];
+  for (const [k, v] of Object.entries(edits.merges)) if (v === selected) delete edits.merges[k];
+  render();
+}
+
+function overlayJSON() {
+  const modules = {};
+  const keys = new Set([...Object.keys(edits.names), ...Object.keys(edits.hidden), ...Object.keys(edits.merges)]);
+  for (const k of keys) {
+    const o = {};
+    if (edits.names[k]) o.name = edits.names[k];
+    if (edits.hidden[k]) o.hidden = true;
+    if (edits.merges[k]) o.mergeInto = edits.merges[k];
+    modules[k] = o;
+  }
+  return JSON.stringify({ modules }, null, 2);
+}
+
+function copyOverlay() {
+  const txt = overlayJSON();
+  navigator.clipboard?.writeText(txt).then(
+    () => alert("已复制 codeblast.overlay.json 内容,粘贴到仓库根同名文件即可持久化"),
+    () => alert("复制失败,请手动从下方文本框复制"),
+  );
+}
+
+function downloadOverlay() {
+  const blob = new Blob([overlayJSON()], { type: "application/json" });
+  const a = document.createElement("a");
+  a.download = "codeblast.overlay.json";
+  a.href = URL.createObjectURL(blob);
+  a.click();
+}
+
+function renderEditPanel() {
+  if (!editing) return "";
+  const dirty = Object.keys(edits.names).length + Object.keys(edits.hidden).length + Object.keys(edits.merges).length;
+  if (!selected) {
+    return '<div id="editpanel"><h2>编辑模式</h2><p class="tip">点一个模块开始编辑;先点 A 再点 B = 把 A 并入 B。'
+      + (dirty ? '<br/>已有 ' + dirty + ' 项修改。' : '') + '</p>'
+      + (dirty ? '<div class="row"><button class="primary" onclick="copyOverlay()">复制 overlay JSON</button>'
+        + '<button onclick="downloadOverlay()">下载文件</button></div><pre>' + esc(overlayJSON()) + '</pre>' : '')
+      + '</div>';
+  }
+  const merged = Object.entries(edits.merges).filter(([, v]) => v === selected).map(([k]) => k);
+  return '<div id="editpanel"><h2>' + esc(selected) + '</h2>'
+    + '<label class="tip">显示名</label>'
+    + '<input id="editname" value="' + esc(displayName(selected)) + '" onkeydown="if(event.key===\\'Enter\\')applyEditName()"/>'
+    + '<div class="row"><button class="primary" onclick="applyEditName()">应用名称</button>'
+    + '<button onclick="toggleHidden()">' + (edits.hidden[selected] ? "取消隐藏" : "隐藏此模块") + '</button></div>'
+    + '<div class="row"><button onclick="startMerge()">' + (mergeSource === selected ? "▸ 点击目标模块完成合并" : "合并到…") + '</button></div>'
+    + (edits.merges[selected] ? '<p class="tip">已并入 <b>' + esc(edits.merges[selected]) + '</b></p><div class="row"><button onclick="unmerge()">取消合并</button></div>' : '')
+    + (merged.length ? '<p class="tip">已合入此模块: ' + merged.map(esc).join(", ") + '</p><div class="row"><button onclick="unmerge()">解除全部</button></div>' : '')
+    + '<div class="row"><button class="primary" onclick="copyOverlay()">复制 overlay JSON</button><button onclick="downloadOverlay()">下载</button></div>'
+    + '<pre>' + esc(overlayJSON()) + '</pre></div>';
 }
 function drill(mod) { view = { scope: "files", module: mod }; render(); }
 function goHome() { view = { scope: "modules", module: null }; render(); }
