@@ -75,3 +75,4 @@ proving it doesn't lie: ...
 - [ ] 确认 live demo 全部可打开（Pages 已 built）
 - [ ] 首页 star 数为 0 时不必掩饰——HN 更在意方法论
 - [ ] 发布时段：HN 美西周二至周四早 8-10 点转化最好
+
