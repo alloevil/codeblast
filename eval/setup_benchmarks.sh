@@ -27,7 +27,7 @@ if [ ! -d /tmp/graphql-tools/.git ]; then
 fi
 cd /tmp/graphql-tools
 # 跳过 Chromium 下载；url-loader-browser.spec.ts 因此基线失败，变异脚本会从 ground truth 扣除
-PUPPETEER_SKIP_DOWNLOAD=true npm install --ignore-scripts --no-audit --no-fund
+PUPPETEER_SKIP_DOWNLOAD=true npm ci --ignore-scripts --no-audit --no-fund
 
 echo "== 建图 =="
 cd "$ATLAS"
