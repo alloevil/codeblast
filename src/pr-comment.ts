@@ -177,7 +177,7 @@ for (const n of prodNodesAdded.slice(0, 15)) {
     // 只报 call 通道——文件级均值会给全新符号报出虚假的巨大半径（独立评审 3e0e979 案例）
     const callItems = r.items.filter((i) => i.channel === "call");
     const tests = callItems.filter((i) => i.level === "tests").length;
-    impactRows.push(`| \`${n.name}\` | ${n.kind} | ${callItems.length} | ${tests} |`);
+    impactRows.push(`| \`${n.name}\` | ${n.kind} | ${callItems.length} | ${tests} | ${link(n.file, n.line)} |`);
     // 目标所在文件有盲区时,"无覆盖"可能是动态派发接不上（新增测试经回调覆盖）——降级为存疑
     const blind = r.blind_spot_count > 0;
     if (tests === 0 && n.kind !== "interface" && n.kind !== "const") {
@@ -186,7 +186,7 @@ for (const n of prodNodesAdded.slice(0, 15)) {
   } catch { /* 模块级 id 无节点 */ }
 }
 if (impactRows.length > 0) {
-  lines.push(`### 新增符号的影响半径（仅调用链可达,不含 import 粗粒度）`, ``, `| 符号 | 类型 | 调用链影响 | 受影响测试 |`, `|---|---|---|---|`, ...impactRows, ``);
+  lines.push(`### 新增符号的影响半径（仅调用链可达,不含 import 粗粒度）`, ``, `| 符号 | 类型 | 调用链影响 | 受影响测试 | 位置 |`, `|---|---|---|---|---|`, ...impactRows, ``);
 }
 if (uncovered.length > 0) {
   lines.push(`### ⚠️ 无测试覆盖的新增符号`, ``, ...uncovered, ``);
