@@ -3,22 +3,58 @@ M1 验收 — 变异测试对照（方法照 arXiv:1812.06286）。
 
 每个变异点：
 1. 有测试覆盖的源码函数注入变异（函数体首行 throw）。
-2. 跑【全量】vitest → 失败测试文件 = ground truth。
+2. 跑【全量】测试（vitest 或 jest，按目标仓 package.json 自动识别）→ 失败测试文件 = ground truth。
 3. 召回命中 = 引擎预测的 tests 文件集 ⊇ 真实失败文件集。
 4. 恢复文件。
 
 召回率硬门槛 100%；精确率报实数。
+
+用法: python3 eval/mutation_check.py [REPO] [DB] [N_MUTANTS] [--runner auto|vitest|jest]
 """
 import json
+import os
 import sqlite3
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
-REPO = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("/tmp/trpc")
-DB = sys.argv[2] if len(sys.argv) > 2 else "/tmp/trpc-full.db"
+def _pop_runner(argv: list[str]) -> str:
+    for i, a in enumerate(argv):
+        if a == "--runner" and i + 1 < len(argv):
+            del argv[i]
+            return argv.pop(i)
+        if a.startswith("--runner="):
+            del argv[i]
+            return a.split("=", 1)[1]
+    return "auto"
+
+ARGV = sys.argv[1:]
+RUNNER_ARG = _pop_runner(ARGV)
+if RUNNER_ARG not in ("auto", "vitest", "jest"):
+    raise SystemExit(f"--runner must be auto|vitest|jest, got {RUNNER_ARG!r}")
+
+REPO = Path(ARGV[0]) if len(ARGV) > 0 else Path("/tmp/trpc")
+DB = ARGV[1] if len(ARGV) > 1 else "/tmp/trpc-full.db"
 ATLAS = Path(__file__).resolve().parent.parent
-N_MUTANTS = int(sys.argv[3]) if len(sys.argv) > 3 else 10
+N_MUTANTS = int(ARGV[2]) if len(ARGV) > 2 else 10
+
+def detect_runner() -> str:
+    """从目标仓根 package.json 识别测试框架；无 jest 迹象时默认 vitest（保持原行为）。"""
+    if RUNNER_ARG != "auto":
+        return RUNNER_ARG
+    try:
+        pkg = json.loads((REPO / "package.json").read_text())
+    except (OSError, ValueError):
+        return "vitest"
+    deps = {**pkg.get("dependencies", {}), **pkg.get("devDependencies", {})}
+    if "vitest" in deps:
+        return "vitest"
+    if "jest" in deps or "jest" in pkg.get("scripts", {}).get("test", ""):
+        return "jest"
+    return "vitest"
+
+RUNNER = detect_runner()
 
 def impact_test_files(node_id: str) -> set[str]:
     out = subprocess.run(
@@ -32,22 +68,49 @@ def impact_test_files(node_id: str) -> set[str]:
     call_files = {it["file"] for it in data["items"] if it["level"] == "tests" and it.get("channel") == "call"}
     return all_files, call_files
 
+def failed_files(report: dict) -> set[str]:
+    """vitest json reporter 与 jest --json 同构：testResults[].{name,status}。"""
+    failed = set()
+    for tr in report.get("testResults", []):
+        if tr.get("status") == "failed":
+            p = Path(tr["name"])
+            failed.add(str(p.relative_to(REPO)) if p.is_absolute() else str(p))
+    return failed
+
 def run_full_vitest() -> set[str] | None:
     """全量测试，返回失败测试文件相对路径集合；报告解析失败返回 None。"""
+    if RUNNER == "jest":
+        return run_full_jest()
     out = subprocess.run(
         ["pnpm", "vitest", "run", "--reporter=json", "--passWithNoTests"],
         cwd=REPO, capture_output=True, text=True, timeout=1800,
     )
     for line in reversed(out.stdout.splitlines()):
         if line.startswith("{"):
-            report = json.loads(line)
-            failed = set()
-            for tr in report.get("testResults", []):
-                if tr.get("status") == "failed":
-                    p = Path(tr["name"])
-                    failed.add(str(p.relative_to(REPO)) if p.is_absolute() else str(p))
-            return failed
+            return failed_files(json.loads(line))
     return None
+
+def run_full_jest() -> set[str] | None:
+    """jest 全量：--json --outputFile 落盘（stdout 混有 console 输出，不可靠）。"""
+    fd, out_path = tempfile.mkstemp(prefix="jest-", suffix=".json")
+    os.close(fd)
+    try:
+        subprocess.run(
+            ["npx", "jest", "--ci", "--no-watchman", "--passWithNoTests",
+             "--json", f"--outputFile={out_path}"],
+            cwd=REPO, capture_output=True, text=True, timeout=1800,
+            env={**os.environ, "CI": "true", "NODE_NO_WARNINGS": "1",
+                 "NODE_OPTIONS": os.environ.get("NODE_OPTIONS", "--max-old-space-size=8192")},
+        )
+        try:
+            return failed_files(json.loads(Path(out_path).read_text()))
+        except (OSError, ValueError):
+            return None
+    finally:
+        try:
+            os.unlink(out_path)
+        except OSError:
+            pass
 
 def mutate(file_path: Path, line_no: int) -> str | None:
     original = file_path.read_text()
@@ -70,11 +133,12 @@ def main():
         ORDER BY RANDOM()
     """).fetchall()
     print(f"total candidates: {len(candidates)}, running {N_MUTANTS} mutants")
+    print(f"runner: {RUNNER}")
 
     # 基线：未变异时的失败集（flaky/环境性失败要从 ground truth 里扣除）
     baseline = run_full_vitest()
     if baseline is None:
-        raise SystemExit("baseline vitest report unparsable")
+        raise SystemExit(f"baseline {RUNNER} report unparsable")
     print(f"baseline failing files (excluded from ground truth): {len(baseline)}")
 
     results, done = [], 0

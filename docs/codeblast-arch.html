@@ -23,6 +23,16 @@
   .node .accentbar { fill: var(--c, var(--accent)); rx: 2; pointer-events: none; }
   .node.test { --c: var(--ok); }
   .node.cyc { --c: var(--warn); }
+  .node.imp-direct { --c: #f85149; } .node.imp-direct rect { stroke-width: 2.2; }
+  .node.imp-tests { --c: #d29922; }
+  .node.imp-indirect { --c: #8957e5; }
+  .node.imp-target rect { stroke: #f85149; stroke-width: 3; filter: drop-shadow(0 0 12px #f8514988); }
+  .node.chg-added { --c: var(--ok); } .node.chg-added rect { stroke-width: 2.2; }
+  .node.chg-removed { --c: #6e40c9; opacity: 0.65; }
+  .node.chg-changed { --c: #d29922; } .node.chg-changed rect { stroke-width: 2.2; }
+  #impactbar { padding: 8px 16px; background: #f8514915; border-bottom: 1px solid #f8514944;
+    font-size: 13px; display: flex; gap: 18px; align-items: center; }
+  #impactbar .sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
   .node text { fill: var(--fg); font-size: 13.5px; font-weight: 600; pointer-events: none; }
   .node .meta { fill: var(--dim); font-size: 11px; font-weight: 400; font-family: ui-monospace, Menlo, monospace; }
   .edge { stroke: #58a6ff55; fill: none; marker-end: url(#arrow); }
@@ -40,6 +50,22 @@
   #toolbar button { background: var(--panel); color: var(--fg); border: 1px solid var(--border);
     border-radius: 8px; padding: 6px 14px; cursor: pointer; font-size: 13px; }
   #toolbar button:hover { border-color: var(--accent); }
+  #toolbar button.on { border-color: var(--accent); background: #1f6feb33; }
+  body.editing .node rect { cursor: text; }
+  body.editing .node.sel rect { stroke: #d29922; stroke-width: 3; }
+  .node.hidden-mod { opacity: 0.35; }
+  .node.hidden-mod rect { stroke-dasharray: 4 3; }
+  #editpanel { border-top: 1px solid var(--border); padding: 12px 0; margin-top: 12px; }
+  #editpanel input { width: 100%; background: #0d1117; color: var(--fg); border: 1px solid var(--border);
+    border-radius: 6px; padding: 6px 8px; font-size: 13px; margin: 4px 0 8px; }
+  #editpanel .row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+  #editpanel button { flex: 1; background: var(--panel); color: var(--fg); border: 1px solid var(--border);
+    border-radius: 6px; padding: 6px 8px; cursor: pointer; font-size: 12.5px; }
+  #editpanel button:hover { border-color: var(--accent); }
+  #editpanel button.primary { background: #1f6feb33; border-color: var(--accent); }
+  #editpanel pre { background: #0d1117; border: 1px solid var(--border); border-radius: 6px;
+    padding: 8px; font-size: 11px; max-height: 180px; overflow: auto; white-space: pre-wrap; }
+  #editpanel .tip { color: var(--dim); font-size: 12px; }
   .edge-label { fill: var(--dim); font-size: 10px; }
   .crumb { color: var(--accent); cursor: pointer; }
   #side h2 { font-size: 14px; margin: 8px 0; }
@@ -54,6 +80,8 @@
 <body>
 <div style="display:flex;flex-direction:column;flex:1">
   <h1 id="title">Architecture Map <small id="crumbs"></small></h1>
+  
+  
   <div id="graph"><svg id="svg"><defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M 0 0 L 10 5 L 0 10 z" fill="#58a6ff88"/></marker>
@@ -61,12 +89,13 @@
       <stop offset="0" stop-color="#1c2430"/><stop offset="1" stop-color="#151b23"/>
     </linearGradient>
   </defs><g id="viewport"></g></svg>
-  <div id="toolbar"><button onclick="toggleFit()">适配 / 100%</button> <button onclick="exportPNG()">导出 PNG</button></div></div>
+  <div id="toolbar"><button id="editbtn" onclick="toggleEdit()">✎ 编辑模块</button> <button onclick="toggleFit()">适配 / 100%</button> <button onclick="exportPNG()">导出 PNG</button></div></div>
 </div>
 <div id="side"><h2>概览</h2><div id="detail"></div>
   <p class="hint">点击模块下钻到文件层;点击文件查看符号。红色虚线 = 循环依赖。滚轮缩放,拖拽平移。</p>
 </div>
 <script>
+const DATA = {"generated":"2026-09-03 03:08","layouts":{"__modules__":{"width":420.8,"height":234,"nodes":[{"id":"src","x":173.2,"y":152,"w":223.6,"h":58},{"id":"eval","x":24,"y":24,"w":150,"h":58},{"id":"tests","x":210,"y":24,"w":150,"h":58}],"edges":[{"src":"tests","dst":"src","points":[{"x":285,"y":82},{"x":285,"y":117},{"x":285,"y":152}]}]},"src":{"width":1927.25,"height":362,"nodes":[{"id":"src/overlay.ts","x":1736.5,"y":280,"w":150,"h":58},{"id":"src/archmap.ts","x":24,"y":24,"w":150,"h":58},{"id":"src/graph-diff.ts","x":866.875,"y":280,"w":166.5,"h":58},{"id":"src/change-cli.ts","x":1095.25,"y":152,"w":166.5,"h":58},{"id":"src/cochange.ts","x":210,"y":24,"w":150,"h":58},{"id":"src/name-modules.ts","x":1719.75,"y":152,"w":183.5,"h":58},{"id":"src/impact.ts","x":1260.375,"y":280,"w":150,"h":58},{"id":"src/archmap-html.ts","x":1500.25,"y":152,"w":183.5,"h":58},{"id":"src/bin.ts","x":396,"y":24,"w":150,"h":58},{"id":"src/schema.ts","x":582,"y":280,"w":150,"h":58},{"id":"src/extract.ts","x":530.5,"y":152,"w":150,"h":58},{"id":"src/cli.ts","x":582,"y":24,"w":150,"h":58},{"id":"src/demo.ts","x":768,"y":24,"w":150,"h":58},{"id":"src/impact-cli.ts","x":1297.75,"y":152,"w":166.5,"h":58},{"id":"src/pr-silence.ts","x":752.375,"y":152,"w":166.5,"h":58},{"id":"src/pr-comment.ts","x":954,"y":24,"w":166.5,"h":58},{"id":"src/py_extract.py","x":1156.5,"y":24,"w":166.5,"h":58}],"edges":[{"src":"src/archmap-html.ts","dst":"src/graph-diff.ts","points":[{"x":1500.25,"y":191.58494817485354},{"x":1037.25,"y":245},{"x":989.603515625,"y":280}]},{"src":"src/archmap-html.ts","dst":"src/impact.ts","points":[{"x":1587.46875,"y":210},{"x":1582,"y":245},{"x":1410.375,"y":289.53725291434364}]},{"src":"src/archmap-html.ts","dst":"src/overlay.ts","points":[{"x":1683.75,"y":206.58605664488016},{"x":1821.5,"y":245},{"x":1816.03125,"y":280}]},{"src":"src/change-cli.ts","dst":"src/graph-diff.ts","points":[{"x":1105.43359375,"y":210},{"x":1017.25,"y":245},{"x":980.541015625,"y":280}]},{"src":"src/change-cli.ts","dst":"src/impact.ts","points":[{"x":1224.37890625,"y":210},{"x":1279.75,"y":245},{"x":1310.169921875,"y":280}]},{"src":"src/cli.ts","dst":"src/extract.ts","points":[{"x":633.6640625,"y":82},{"x":605.5,"y":117},{"x":605.5,"y":152}]},{"src":"src/cli.ts","dst":"src/schema.ts","points":[{"x":687.529296875,"y":82},{"x":724.375,"y":117},{"x":724.375,"y":181},{"x":724.375,"y":245},{"x":687.529296875,"y":280}]},{"src":"src/extract.ts","dst":"src/schema.ts","points":[{"x":605.5,"y":210},{"x":605.5,"y":245},{"x":633.6640625,"y":280}]},{"src":"src/impact-cli.ts","dst":"src/impact.ts","points":[{"x":1326.05859375,"y":210},{"x":1259.75,"y":245},{"x":1301.107421875,"y":280}]},{"src":"src/name-modules.ts","dst":"src/overlay.ts","points":[{"x":1806.96875,"y":210},{"x":1801.5,"y":245},{"x":1806.96875,"y":280}]},{"src":"src/pr-comment.ts","dst":"src/graph-diff.ts","points":[{"x":1019.125,"y":82},{"x":997.25,"y":117},{"x":997.25,"y":181},{"x":997.25,"y":245},{"x":971.478515625,"y":280}]},{"src":"src/pr-comment.ts","dst":"src/impact.ts","points":[{"x":1050.84375,"y":82},{"x":1067.25,"y":117},{"x":1067.25,"y":181},{"x":1067.25,"y":245},{"x":1260.375,"y":291.0979020979021}]},{"src":"src/pr-comment.ts","dst":"src/pr-silence.ts","points":[{"x":954,"y":79.42529448233105},{"x":835.625,"y":117},{"x":835.625,"y":152}]},{"src":"src/pr-silence.ts","dst":"src/graph-diff.ts","points":[{"x":835.625,"y":210},{"x":835.625,"y":245},{"x":898.2421875,"y":280}]}]},"eval":{"width":442.5,"height":106,"nodes":[{"id":"eval/pr_replay.py","x":24,"y":24,"w":158,"h":58},{"id":"eval/mutation_check.py","x":218,"y":24,"w":200.5,"h":58}],"edges":[]},"tests":{"width":1211.5,"height":234,"nodes":[{"id":"test/pr-silence.test.ts","x":24,"y":24,"w":209,"h":58},{"id":"test/helpers.ts","x":780,"y":152,"w":150,"h":58},{"id":"test/overlay-schema.test.ts","x":269,"y":24,"w":243,"h":58},{"id":"test/extract.test.ts","x":548,"y":24,"w":183.5,"h":58},{"id":"test/impact.test.ts","x":767.5,"y":24,"w":175,"h":58},{"id":"test/graph-diff.test.ts","x":978.5,"y":24,"w":209,"h":58}],"edges":[{"src":"test/graph-diff.test.ts","dst":"test/helpers.ts","points":[{"x":1083,"y":82},{"x":1083,"y":117},{"x":930,"y":159.94736842105263}]},{"src":"test/impact.test.ts","dst":"test/helpers.ts","points":[{"x":855,"y":82},{"x":855,"y":117},{"x":855,"y":152}]},{"src":"test/overlay-schema.test.ts","dst":"test/helpers.ts","points":[{"x":390.5,"y":82},{"x":390.5,"y":117},{"x":780,"y":170.66630785791173}]}]}},"impact":null,"diff":null,"repoUrl":"https://github.com/alloevil/codeblast/blob/main","modules":[{"name":"src","files":17,"blind":{"dyn":64,"unres":1}},{"name":"tests","files":6,"blind":{"dyn":0,"unres":0}},{"name":"eval","files":2,"blind":{"dyn":64,"unres":0}}],"moduleMeta":{"src":{"display":"src","desc":""},"eval":{"display":"eval","desc":""},"tests":{"display":"tests","desc":""}},"modEdges":[{"src":"tests","dst":"src","w":9,"cyclic":false}],"files":[{"path":"src/overlay.ts","module":"src","blind":{"dyn":0,"unres":0},"symbols":[{"name":"ModuleOverlay","kind":"interface","line":16},{"name":"Overlay","kind":"interface","line":22},{"name":"loadOverlay","kind":"function","line":26},{"name":"applyOverlay","kind":"function","line":33}]},{"path":"src/archmap.ts","module":"src","blind":{"dyn":0,"unres":0},"symbols":[{"name":"moduleOf","kind":"function","line":26},{"name":"idOf","kind":"function","line":70}]},{"path":"src/graph-diff.ts","module":"src","blind":{"dyn":0,"unres":0},"symbols":[{"name":"NodeDelta","kind":"interface","line":14},{"name":"RenameDelta","kind":"interface","line":15},{"name":"EdgeDelta","kind":"interface","line":16},{"name":"GraphDiff","kind":"interface","line":18},{"name":"NodeRow","kind":"interface","line":30},{"name":"EdgeRow","kind":"interface","line":31},{"name":"graphDiff","kind":"function","line":35},{"name":"edgeKey","kind":"function","line":88},{"name":"foldToModules","kind":"function","line":109},{"name":"moduleOf","kind":"function","line":111},{"name":"bump","kind":"function","line":120}]},{"path":"src/change-cli.ts","module":"src","blind":{"dyn":0,"unres":0},"symbols":[{"name":"buildGraphAt","kind":"function","line":20},{"name":"sh","kind":"function","line":22}]},{"path":"src/cochange.ts","module":"src","blind":{"dyn":0,"unres":0},"symbols":[{"name":"Commit","kind":"interface","line":42}]},{"path":"src/name-modules.ts","module":"src","blind":{"dyn":0,"unres":0},"symbols":[]},{"path":"eval/pr_replay.py","module":"eval","blind":{"dyn":17,"unres":0},"symbols":[]},{"path":"src/impact.ts","module":"src","blind":{"dyn":0,"unres":1},"symbols":[{"name":"ImpactItem","kind":"interface","line":16},{"name":"ImpactResult","kind":"interface","line":36},{"name":"impact","kind":"function","line":48}]},{"path":"src/archmap-html.ts","module":"src","blind":{"dyn":0,"unres":0},"symbols":[{"name":"moduleOf","kind":"function","line":41},{"name":"FileInfo","kind":"interface","line":48},{"name":"effModule","kind":"function","line":81},{"name":"LaidNode","kind":"interface","line":112},{"name":"LaidEdge","kind":"interface","line":113},{"name":"Layout","kind":"interface","line":114},{"name":"layoutGraph","kind":"function","line":116},{"name":"ImpactOverlay","kind":"interface","line":183},{"name":"DiffOverlay","kind":"interface","line":191},{"name":"bump","kind":"function","line":202}]},{"path":"src/bin.ts","module":"src","blind":{"dyn":0,"unres":0},"symbols":[]},{"path":"src/schema.ts","module":"src","blind":{"dyn":0,"unres":0},"symbols":[{"name":"NodeKind","kind":"interface","line":26},{"name":"EdgeKind","kind":"interface","line":37},{"name":"Confidence","kind":"interface","line":40},{"name":"NodeRow","kind":"interface","line":42},{"name":"EdgeRow","kind":"interface","line":55},{"name":"BlindSpotRow","kind":"interface","line":66},{"name":"ImportBindingRow","kind":"interface","line":73},{"name":"openGraph","kind":"function","line":137},{"name":"invalidateFile","kind":"function","line":149}]},{"path":"src/extract.ts","module":"src","blind":{"dyn":0,"unres":0},"symbols":[{"name":"ExtractResult","kind":"interface","line":15},{"name":"injectWorkspacePaths","kind":"function","line":24},{"name":"discoverWorkspacePackages","kind":"function","line":35},{"name":"tryAdd","kind":"function","line":37},{"name":"Extractor","kind":"class","line":58},{"name":"fileNames","kind":"method","line":81},{"name":"ensureProgram","kind":"method","line":87},{"name":"forFiles","kind":"method","line":95},{"name":"sourceFiles","kind":"method","line":108},{"name":"rel","kind":"method","line":115},{"name":"collectImplementers","kind":"method","line":120},{"name":"extractFile","kind":"method","line":147},{"name":"lineOf","kind":"function","line":155},{"name":"endLineOf","kind":"function","line":156},{"name":"declKindOf","kind":"function","line":223},{"name":"visit","kind":"function","line":238},{"name":"resolveCall","kind":"method","line":323},{"name":"push","kind":"function","line":375},{"name":"resolveModule","kind":"method","line":400},{"name":"nodeIdOfDecl","kind":"method","line":433},{"name":"declName","kind":"method","line":445},{"name":"isExported","kind":"method","line":455}]},{"path":"src/cli.ts","module":"src","blind":{"dyn":0,"unres":0},"symbols":[{"name":"discoverTsconfigs","kind":"function","line":27},{"name":"walk","kind":"function","line":32},{"name":"indexProgram","kind":"function","line":97},{"name":"sweep","kind":"function","line":169}]},{"path":"src/demo.ts","module":"src","blind":{"dyn":0,"unres":0},"symbols":[{"name":"run","kind":"function","line":14}]},{"path":"src/impact-cli.ts","module":"src","blind":{"dyn":0,"unres":0},"symbols":[]},{"path":"src/pr-silence.ts","module":"src","blind":{"dyn":0,"unres":0},"symbols":[{"name":"BodyChange","kind":"interface","line":15},{"name":"structuralTotal","kind":"function","line":17},{"name":"bodySignalCount","kind":"function","line":27},{"name":"coreNamedCount","kind":"function","line":41}]},{"path":"src/pr-comment.ts","module":"src","blind":{"dyn":0,"unres":0},"symbols":[{"name":"buildGraphAt","kind":"function","line":26},{"name":"link","kind":"function","line":96}]},{"path":"test/pr-silence.test.ts","module":"tests","blind":{"dyn":0,"unres":0},"symbols":[{"name":"emptyDiff","kind":"test","line":5},{"name":"body","kind":"test","line":8}]},{"path":"test/helpers.ts","module":"tests","blind":{"dyn":0,"unres":0},"symbols":[{"name":"N","kind":"interface","line":8},{"name":"E","kind":"interface","line":9},{"name":"defaults","kind":"function","line":12},{"name":"memGraph","kind":"function","line":20},{"name":"addBinding","kind":"function","line":40},{"name":"addBlind","kind":"function","line":45}]},{"path":"test/overlay-schema.test.ts","module":"tests","blind":{"dyn":0,"unres":0},"symbols":[{"name":"count","kind":"test","line":62}]},{"path":"test/extract.test.ts","module":"tests","blind":{"dyn":0,"unres":0},"symbols":[]},{"path":"test/impact.test.ts","module":"tests","blind":{"dyn":0,"unres":0},"symbols":[{"name":"baseGraph","kind":"test","line":11},{"name":"byId","kind":"test","line":29}]},{"path":"test/graph-diff.test.ts","module":"tests","blind":{"dyn":0,"unres":0},"symbols":[]},{"path":"eval/mutation_check.py","module":"eval","blind":{"dyn":47,"unres":0},"symbols":[{"name":"_pop_runner","kind":"function","line":22},{"name":"detect_runner","kind":"function","line":42},{"name":"impact_test_files","kind":"function","line":59},{"name":"failed_files","kind":"function","line":71},{"name":"run_full_vitest","kind":"function","line":80},{"name":"run_full_jest","kind":"function","line":93},{"name":"mutate","kind":"function","line":115},{"name":"main","kind":"function","line":126}]},{"path":"src/py_extract.py","module":"src","blind":{"dyn":64,"unres":0},"symbols":[{"name":"is_test_file","kind":"function","line":27},{"name":"module_to_path","kind":"function","line":32},{"name":"FileExtractor","kind":"class","line":49},{"name":"__init__","kind":"method","line":50},{"name":"qualname","kind":"method","line":68},{"name":"visit_ClassDef","kind":"method","line":71},{"name":"_visit_func","kind":"method","line":89},{"name":"visit_Import","kind":"method","line":125},{"name":"visit_ImportFrom","kind":"method","line":132},{"name":"current_caller","kind":"method","line":145},{"name":"visit_Call","kind":"method","line":151},{"name":"visit_Assign","kind":"method","line":191},{"name":"visit_AnnAssign","kind":"method","line":207},{"name":"main","kind":"function","line":219}]}],"fileEdges":[{"src":"src/archmap-html.ts","dst":"src/graph-diff.ts","line":17},{"src":"src/archmap-html.ts","dst":"src/impact.ts","line":16},{"src":"src/archmap-html.ts","dst":"src/overlay.ts","line":14},{"src":"src/change-cli.ts","dst":"src/graph-diff.ts","line":12},{"src":"src/change-cli.ts","dst":"src/impact.ts","line":13},{"src":"src/cli.ts","dst":"src/extract.ts","line":14},{"src":"src/cli.ts","dst":"src/schema.ts","line":12},{"src":"src/cli.ts","dst":"src/schema.ts","line":13},{"src":"src/extract.ts","dst":"src/schema.ts","line":12},{"src":"src/extract.ts","dst":"src/schema.ts","line":13},{"src":"src/impact-cli.ts","dst":"src/impact.ts","line":6},{"src":"src/name-modules.ts","dst":"src/overlay.ts","line":13},{"src":"src/pr-comment.ts","dst":"src/graph-diff.ts","line":13},{"src":"src/pr-comment.ts","dst":"src/impact.ts","line":14},{"src":"src/pr-comment.ts","dst":"src/pr-silence.ts","line":15},{"src":"src/pr-silence.ts","dst":"src/graph-diff.ts","line":7},{"src":"test/extract.test.ts","dst":"src/extract.ts","line":5},{"src":"test/graph-diff.test.ts","dst":"src/graph-diff.ts","line":2},{"src":"test/graph-diff.test.ts","dst":"test/helpers.ts","line":3},{"src":"test/helpers.ts","dst":"src/schema.ts","line":5},{"src":"test/helpers.ts","dst":"src/schema.ts","line":6},{"src":"test/impact.test.ts","dst":"src/impact.ts","line":2},{"src":"test/impact.test.ts","dst":"test/helpers.ts","line":3},{"src":"test/overlay-schema.test.ts","dst":"src/overlay.ts","line":2},{"src":"test/overlay-schema.test.ts","dst":"src/schema.ts","line":3},{"src":"test/overlay-schema.test.ts","dst":"test/helpers.ts","line":4},{"src":"test/pr-silence.test.ts","dst":"src/graph-diff.ts","line":3},{"src":"test/pr-silence.test.ts","dst":"src/pr-silence.ts","line":2}]};
 function blindLabel(b) {
   if (!b || (!b.dyn && !b.unres)) return "";
   const parts = [];
@@ -74,7 +103,6 @@ function blindLabel(b) {
   if (b.unres) parts.push(b.unres + " unres");
   return " · " + parts.join(" · ");
 }
-const DATA = {"generated":"2026-08-28 09:43","layouts":{"__modules__":{"width":389.6,"height":106,"nodes":[{"id":"src","x":24,"y":24,"w":155.6,"h":58},{"id":"eval","x":215.60000000000002,"y":24,"w":150,"h":58}],"edges":[]},"src":{"width":1820.625,"height":362,"nodes":[{"id":"src/overlay.ts","x":187.75,"y":152,"w":150,"h":58},{"id":"src/archmap-html.ts","x":429.5,"y":24,"w":183.5,"h":58},{"id":"src/archmap.ts","x":243.5,"y":24,"w":150,"h":58},{"id":"src/graph-diff.ts","x":650.625,"y":152,"w":166.5,"h":58},{"id":"src/impact.ts","x":1192.5,"y":152,"w":150,"h":58},{"id":"src/change-cli.ts","x":1039.125,"y":24,"w":166.5,"h":58},{"id":"src/schema.ts","x":1444.125,"y":280,"w":150,"h":58},{"id":"src/extract.ts","x":1392.625,"y":152,"w":150,"h":58},{"id":"src/cli.ts","x":1444.125,"y":24,"w":150,"h":58},{"id":"src/cochange.ts","x":853.125,"y":24,"w":150,"h":58},{"id":"src/impact-cli.ts","x":1241.625,"y":24,"w":166.5,"h":58},{"id":"src/name-modules.ts","x":24,"y":24,"w":183.5,"h":58},{"id":"src/pr-comment.ts","x":650.625,"y":24,"w":166.5,"h":58},{"id":"src/py_extract.py","x":1630.125,"y":24,"w":166.5,"h":58}],"edges":[{"src":"src/archmap-html.ts","dst":"src/overlay.ts","points":[{"x":521.25,"y":82},{"x":521.25,"y":117},{"x":337.75,"y":162.43133462282398}]},{"src":"src/change-cli.ts","dst":"src/graph-diff.ts","points":[{"x":1096.376953125,"y":82},{"x":1065,"y":117},{"x":817.125,"y":164.90939977349944}]},{"src":"src/change-cli.ts","dst":"src/impact.ts","points":[{"x":1205.625,"y":74.9938080495356},{"x":1364.625,"y":117},{"x":1311.509765625,"y":152}]},{"src":"src/cli.ts","dst":"src/extract.ts","points":[{"x":1495.7890625,"y":82},{"x":1467.625,"y":117},{"x":1467.625,"y":152}]},{"src":"src/cli.ts","dst":"src/schema.ts","points":[{"x":1542.4609375,"y":82},{"x":1570.625,"y":117},{"x":1570.625,"y":181},{"x":1570.625,"y":245},{"x":1542.4609375,"y":280}]},{"src":"src/extract.ts","dst":"src/schema.ts","points":[{"x":1467.625,"y":210},{"x":1467.625,"y":245},{"x":1495.7890625,"y":280}]},{"src":"src/impact-cli.ts","dst":"src/impact.ts","points":[{"x":1298.876953125,"y":82},{"x":1267.5,"y":117},{"x":1267.5,"y":152}]},{"src":"src/name-modules.ts","dst":"src/overlay.ts","points":[{"x":115.75,"y":82},{"x":115.75,"y":117},{"x":196.140625,"y":152}]},{"src":"src/pr-comment.ts","dst":"src/graph-diff.ts","points":[{"x":707.876953125,"y":82},{"x":676.5,"y":117},{"x":707.876953125,"y":152}]},{"src":"src/pr-comment.ts","dst":"src/impact.ts","points":[{"x":817.125,"y":65.32263660017347},{"x":1166.25,"y":117},{"x":1221.62109375,"y":152}]}]},"eval":{"width":206,"height":106,"nodes":[{"id":"eval/pr_replay.py","x":24,"y":24,"w":158,"h":58}],"edges":[]}},"repoUrl":"https://github.com/alloevil/codeblast/blob/main","modules":[{"name":"src","files":14,"blind":{"dyn":59,"unres":0}},{"name":"eval","files":1,"blind":{"dyn":17,"unres":0}}],"moduleMeta":{"src":{"display":"src","desc":""},"eval":{"display":"eval","desc":""}},"modEdges":[],"files":[{"path":"src/overlay.ts","module":"src","blind":{"dyn":0,"unres":0},"symbols":[{"name":"ModuleOverlay","kind":"interface","line":16},{"name":"Overlay","kind":"interface","line":22},{"name":"loadOverlay","kind":"function","line":26},{"name":"applyOverlay","kind":"function","line":33}]},{"path":"src/archmap-html.ts","module":"src","blind":{"dyn":0,"unres":0},"symbols":[{"name":"moduleOf","kind":"function","line":32},{"name":"FileInfo","kind":"interface","line":39},{"name":"effModule","kind":"function","line":72},{"name":"LaidNode","kind":"interface","line":103},{"name":"LaidEdge","kind":"interface","line":104},{"name":"Layout","kind":"interface","line":105},{"name":"layoutGraph","kind":"function","line":107}]},{"path":"src/archmap.ts","module":"src","blind":{"dyn":0,"unres":0},"symbols":[{"name":"moduleOf","kind":"function","line":26},{"name":"idOf","kind":"function","line":70}]},{"path":"src/graph-diff.ts","module":"src","blind":{"dyn":0,"unres":0},"symbols":[{"name":"NodeDelta","kind":"interface","line":14},{"name":"RenameDelta","kind":"interface","line":15},{"name":"EdgeDelta","kind":"interface","line":16},{"name":"GraphDiff","kind":"interface","line":18},{"name":"NodeRow","kind":"interface","line":30},{"name":"EdgeRow","kind":"interface","line":31},{"name":"graphDiff","kind":"function","line":35},{"name":"edgeKey","kind":"function","line":88},{"name":"foldToModules","kind":"function","line":109},{"name":"moduleOf","kind":"function","line":111},{"name":"bump","kind":"function","line":120}]},{"path":"src/impact.ts","module":"src","blind":{"dyn":0,"unres":0},"symbols":[{"name":"ImpactItem","kind":"interface","line":16},{"name":"ImpactResult","kind":"interface","line":33},{"name":"impact","kind":"function","line":45}]},{"path":"src/change-cli.ts","module":"src","blind":{"dyn":0,"unres":0},"symbols":[{"name":"buildGraphAt","kind":"function","line":20},{"name":"sh","kind":"function","line":22}]},{"path":"src/schema.ts","module":"src","blind":{"dyn":0,"unres":0},"symbols":[{"name":"NodeKind","kind":"interface","line":26},{"name":"EdgeKind","kind":"interface","line":37},{"name":"Confidence","kind":"interface","line":40},{"name":"NodeRow","kind":"interface","line":42},{"name":"EdgeRow","kind":"interface","line":55},{"name":"BlindSpotRow","kind":"interface","line":66},{"name":"openGraph","kind":"function","line":119},{"name":"invalidateFile","kind":"function","line":131}]},{"path":"src/extract.ts","module":"src","blind":{"dyn":0,"unres":0},"symbols":[{"name":"ExtractResult","kind":"interface","line":14},{"name":"injectWorkspacePaths","kind":"function","line":22},{"name":"discoverWorkspacePackages","kind":"function","line":33},{"name":"tryAdd","kind":"function","line":35},{"name":"Extractor","kind":"class","line":56},{"name":"forFiles","kind":"method","line":76},{"name":"sourceFiles","kind":"method","line":88},{"name":"rel","kind":"method","line":94},{"name":"collectImplementers","kind":"method","line":99},{"name":"extractFile","kind":"method","line":126},{"name":"lineOf","kind":"function","line":133},{"name":"endLineOf","kind":"function","line":134},{"name":"declKindOf","kind":"function","line":164},{"name":"visit","kind":"function","line":179},{"name":"resolveCall","kind":"method","line":260},{"name":"push","kind":"function","line":312},{"name":"resolveModule","kind":"method","line":337},{"name":"nodeIdOfDecl","kind":"method","line":370},{"name":"declName","kind":"method","line":382},{"name":"isExported","kind":"method","line":392}]},{"path":"src/cli.ts","module":"src","blind":{"dyn":0,"unres":0},"symbols":[{"name":"discoverTsconfigs","kind":"function","line":26},{"name":"walk","kind":"function","line":31},{"name":"indexProgram","kind":"function","line":89},{"name":"sweep","kind":"function","line":125}]},{"path":"src/cochange.ts","module":"src","blind":{"dyn":0,"unres":0},"symbols":[{"name":"Commit","kind":"interface","line":42}]},{"path":"src/impact-cli.ts","module":"src","blind":{"dyn":0,"unres":0},"symbols":[]},{"path":"src/name-modules.ts","module":"src","blind":{"dyn":0,"unres":0},"symbols":[]},{"path":"src/pr-comment.ts","module":"src","blind":{"dyn":0,"unres":0},"symbols":[{"name":"buildGraphAt","kind":"function","line":25},{"name":"BodyChange","kind":"interface","line":65},{"name":"link","kind":"function","line":97}]},{"path":"eval/pr_replay.py","module":"eval","blind":{"dyn":17,"unres":0},"symbols":[]},{"path":"src/py_extract.py","module":"src","blind":{"dyn":59,"unres":0},"symbols":[{"name":"is_test_file","kind":"function","line":27},{"name":"module_to_path","kind":"function","line":32},{"name":"FileExtractor","kind":"class","line":49},{"name":"__init__","kind":"method","line":50},{"name":"qualname","kind":"method","line":66},{"name":"visit_ClassDef","kind":"method","line":69},{"name":"_visit_func","kind":"method","line":87},{"name":"visit_Import","kind":"method","line":112},{"name":"visit_ImportFrom","kind":"method","line":119},{"name":"current_caller","kind":"method","line":129},{"name":"visit_Call","kind":"method","line":135},{"name":"main","kind":"function","line":163}]}],"fileEdges":[{"src":"src/archmap-html.ts","dst":"src/overlay.ts","line":14},{"src":"src/change-cli.ts","dst":"src/graph-diff.ts","line":12},{"src":"src/change-cli.ts","dst":"src/impact.ts","line":13},{"src":"src/cli.ts","dst":"src/extract.ts","line":13},{"src":"src/cli.ts","dst":"src/schema.ts","line":12},{"src":"src/extract.ts","dst":"src/schema.ts","line":12},{"src":"src/impact-cli.ts","dst":"src/impact.ts","line":6},{"src":"src/name-modules.ts","dst":"src/overlay.ts","line":13},{"src":"src/pr-comment.ts","dst":"src/graph-diff.ts","line":13},{"src":"src/pr-comment.ts","dst":"src/impact.ts","line":14}]};
 const svg = document.getElementById("svg"), vp = document.getElementById("viewport");
 const detail = document.getElementById("detail"), crumbs = document.getElementById("crumbs");
 let view = { scope: "modules", module: null };
@@ -100,12 +128,44 @@ function layout(nodes, edges) {
 
 function esc(s) { return s.replace(/&/g,"&amp;").replace(/</g,"&lt;"); }
 
+function impactClass(id, isModule) {
+  if (DATA.diff) {
+    if (isModule) {
+      const mc = DATA.diff.moduleCounts[id];
+      if (!mc) return "";
+      if (mc.added > mc.changed && mc.added >= mc.removed) return " chg-added";
+      if (mc.removed > mc.added && mc.removed > mc.changed) return " chg-removed";
+      return " chg-changed";
+    }
+    const st = DATA.diff.fileStates[id];
+    return st ? " chg-" + st : "";
+  }
+  if (!DATA.impact) return "";
+  if (isModule) {
+    const mc = DATA.impact.moduleCounts[id];
+    if (!mc) return "";
+    if (mc.direct > 0) return " imp-direct";
+    if (mc.tests > 0) return " imp-tests";
+    return " imp-indirect";
+  }
+  if (id === DATA.impact.targetFile) return " imp-target";
+  const lv = DATA.impact.fileLevels[id];
+  return lv ? " imp-" + lv : "";
+}
 function buildView() {
   if (view.scope === "modules") {
     return {
       key: "__modules__",
-      nodes: DATA.modules.map(m => ({ id: m.name, label: (DATA.moduleMeta[m.name]?.display ?? m.name), meta: m.files + " files" + blindLabel(m.blind), test: m.name === "tests", cyc: DATA.modEdges.some(e => e.cyclic && (e.src === m.name || e.dst === m.name)) })),
-      edges: DATA.modEdges.map(e => ({ src: e.src, dst: e.dst, w: e.w, cyclic: e.cyclic })),
+      nodes: DATA.modules.filter(m => !edits.merges[m.name] && (editing || !edits.hidden[m.name])).map(m => ({
+        id: m.name,
+        label: displayName(m.name),
+        meta: m.files + " files" + blindLabel(m.blind),
+        test: m.name === "tests",
+        cyc: DATA.modEdges.some(e => e.cyclic && (e.src === m.name || e.dst === m.name)),
+      })),
+      edges: DATA.modEdges
+        .map(e => ({ src: edits.merges[e.src] ?? e.src, dst: edits.merges[e.dst] ?? e.dst, w: e.w, cyclic: e.cyclic }))
+        .filter(e => e.src !== e.dst),
       crumb: "模块层 · " + DATA.modules.length + " modules",
     };
   }
@@ -188,7 +248,7 @@ function render() {
   v.nodes.forEach(n => {
     const p = pos[n.id];
     if (!p) return;
-    g += '<g class="node' + (n.test ? " test" : "") + (n.cyc ? " cyc" : "") + '" data-id="' + esc(n.id) + '" onclick="clickNode(\'' + n.id.replace(/'/g, "\\'") + '\')" onmouseenter="hl(\'' + n.id.replace(/'/g, "\\'") + '\',1)" onmouseleave="hl(\'' + n.id.replace(/'/g, "\\'") + '\',0)">'
+    g += '<g class="node' + (n.test ? " test" : "") + (n.cyc ? " cyc" : "") + impactClass(n.id, view.scope === "modules") + (n.id === selected ? " sel" : "") + (edits.hidden[n.id] ? " hidden-mod" : "") + '" data-id="' + esc(n.id) + '" onclick="clickNode(\'' + n.id.replace(/'/g, "\\'") + '\')" onmouseenter="hl(\'' + n.id.replace(/'/g, "\\'") + '\',1)" onmouseleave="hl(\'' + n.id.replace(/'/g, "\\'") + '\',0)">'
        + '<rect x="' + p.x + '" y="' + p.y + '" width="' + p.w + '" height="' + p.h + '"/>'
        + '<rect class="accentbar" x="' + p.x + '" y="' + (p.y + 10) + '" width="3.5" height="' + (p.h - 20) + '"/>'
        + '<text x="' + (p.x + p.w / 2) + '" y="' + (p.y + 24) + '" text-anchor="middle">' + esc(n.label) + '</text>'
@@ -252,20 +312,138 @@ function renderSide() {
     let h = "";
     if (cyc.length) h += '<div class="cyclic-banner">⚠ 检测到循环依赖: ' + cyc.map(e => esc(e.src)+" ⇄ "+esc(e.dst)).filter((v,i,a)=>a.indexOf(v)===i).slice(0,3).join("; ") + '</div>';
     h += DATA.modules.map(m => '<div class="item" onclick="drill(\''+m.name.replace(/'/g,"\\'")+'\')"><span>'+esc(DATA.moduleMeta[m.name]?.display ?? m.name)+'</span>'+(DATA.moduleMeta[m.name]?.desc ? '<div class="kind">'+esc(DATA.moduleMeta[m.name].desc)+'</div>' : '')+'<span class="kind">'+m.files+' files'+'<span class="blind">'+blindLabel(m.blind)+'</span>'+'</span></div>').join("");
-    detail.innerHTML = h;
+    detail.innerHTML = renderEditPanel() + h;
   }
 }
 
 function clickNode(id) {
+  if (editing && view.scope === "modules") { selectForEdit(id); return; }
   if (view.scope === "modules") drill(id);
   else showFile(id);
+}
+
+// ---- overlay 编辑模式：图上改名/合并/隐藏,导出 codeblast.overlay.json ----
+let editing = false;
+let selected = null;
+let mergeSource = null;
+// 会话内编辑态（不改 DATA,渲染时叠加）
+const edits = { names: {}, hidden: {}, merges: {} };
+
+function toggleEdit() {
+  editing = !editing;
+  selected = null;
+  document.body.classList.toggle("editing", editing);
+  document.getElementById("editbtn").classList.toggle("on", editing);
+  if (editing && view.scope !== "modules") goHome();
+  else render();
+}
+
+function selectForEdit(id) {
+  if (selected === id) { selected = null; render(); return; }
+  // 合并意图：仅当上一个选中项处于"待合并"状态（用户按了合并按钮）才触发,
+  // 避免单纯切换选中被误判为合并（实测 bug: 改完名切到别的模块 → 被合并掉）
+  if (mergeSource && mergeSource !== id) {
+    if (confirm(`把「${displayName(mergeSource)}」并入「${displayName(id)}」?`)) {
+      edits.merges[mergeSource] = id;
+      mergeSource = null;
+      selected = id;
+      render();
+      return;
+    }
+    mergeSource = null;
+  }
+  selected = id;
+  render();
+}
+
+function startMerge() {
+  if (!selected) return;
+  mergeSource = selected;
+  render();
+}
+
+function displayName(m) {
+  return edits.names[m] ?? DATA.moduleMeta[m]?.display ?? m;
+}
+
+function applyEditName() {
+  if (!selected) return;
+  const v = document.getElementById("editname").value.trim();
+  if (v) edits.names[selected] = v; else delete edits.names[selected];
+  render();
+}
+
+function toggleHidden() {
+  if (!selected) return;
+  if (edits.hidden[selected]) delete edits.hidden[selected];
+  else edits.hidden[selected] = true;
+  render();
+}
+
+function unmerge() {
+  if (!selected) return;
+  delete edits.merges[selected];
+  for (const [k, v] of Object.entries(edits.merges)) if (v === selected) delete edits.merges[k];
+  render();
+}
+
+function overlayJSON() {
+  const modules = {};
+  const keys = new Set([...Object.keys(edits.names), ...Object.keys(edits.hidden), ...Object.keys(edits.merges)]);
+  for (const k of keys) {
+    const o = {};
+    if (edits.names[k]) o.name = edits.names[k];
+    if (edits.hidden[k]) o.hidden = true;
+    if (edits.merges[k]) o.mergeInto = edits.merges[k];
+    modules[k] = o;
+  }
+  return JSON.stringify({ modules }, null, 2);
+}
+
+function copyOverlay() {
+  const txt = overlayJSON();
+  navigator.clipboard?.writeText(txt).then(
+    () => alert("已复制 codeblast.overlay.json 内容,粘贴到仓库根同名文件即可持久化"),
+    () => alert("复制失败,请手动从下方文本框复制"),
+  );
+}
+
+function downloadOverlay() {
+  const blob = new Blob([overlayJSON()], { type: "application/json" });
+  const a = document.createElement("a");
+  a.download = "codeblast.overlay.json";
+  a.href = URL.createObjectURL(blob);
+  a.click();
+}
+
+function renderEditPanel() {
+  if (!editing) return "";
+  const dirty = Object.keys(edits.names).length + Object.keys(edits.hidden).length + Object.keys(edits.merges).length;
+  if (!selected) {
+    return '<div id="editpanel"><h2>编辑模式</h2><p class="tip">点一个模块开始编辑;先点 A 再点 B = 把 A 并入 B。'
+      + (dirty ? '<br/>已有 ' + dirty + ' 项修改。' : '') + '</p>'
+      + (dirty ? '<div class="row"><button class="primary" onclick="copyOverlay()">复制 overlay JSON</button>'
+        + '<button onclick="downloadOverlay()">下载文件</button></div><pre>' + esc(overlayJSON()) + '</pre>' : '')
+      + '</div>';
+  }
+  const merged = Object.entries(edits.merges).filter(([, v]) => v === selected).map(([k]) => k);
+  return '<div id="editpanel"><h2>' + esc(selected) + '</h2>'
+    + '<label class="tip">显示名</label>'
+    + '<input id="editname" value="' + esc(displayName(selected)) + '" onkeydown="if(event.key===\'Enter\')applyEditName()"/>'
+    + '<div class="row"><button class="primary" onclick="applyEditName()">应用名称</button>'
+    + '<button onclick="toggleHidden()">' + (edits.hidden[selected] ? "取消隐藏" : "隐藏此模块") + '</button></div>'
+    + '<div class="row"><button onclick="startMerge()">' + (mergeSource === selected ? "▸ 点击目标模块完成合并" : "合并到…") + '</button></div>'
+    + (edits.merges[selected] ? '<p class="tip">已并入 <b>' + esc(edits.merges[selected]) + '</b></p><div class="row"><button onclick="unmerge()">取消合并</button></div>' : '')
+    + (merged.length ? '<p class="tip">已合入此模块: ' + merged.map(esc).join(", ") + '</p><div class="row"><button onclick="unmerge()">解除全部</button></div>' : '')
+    + '<div class="row"><button class="primary" onclick="copyOverlay()">复制 overlay JSON</button><button onclick="downloadOverlay()">下载</button></div>'
+    + '<pre>' + esc(overlayJSON()) + '</pre></div>';
 }
 function drill(mod) { view = { scope: "files", module: mod }; render(); }
 function goHome() { view = { scope: "modules", module: null }; render(); }
 function showFile(path) {
   const f = DATA.files.find(x => x.path === path); if (!f) return;
   detail.innerHTML = '<h2>' + esc(path) + '</h2>'
-    + ((f.blind.dyn || f.blind.unres) ? '<div class="cyclic-banner">盲区: '+(f.blind.dyn||0)+' 动态调用（原理性不可达） + '+(f.blind.unres||0)+' 解析失败（可能因缺依赖虚高）— 影响可能被低估</div>' : '')
+    + ((f.blind.dyn || f.blind.unres) ? '<div class="cyclic-banner">盲区（静态无法解析到仓内目标的调用/导入，并非只有动态调用）: '+(f.blind.dyn||0)+' 动态/子进程/外部依赖解析失败 + '+(f.blind.unres||0)+' 未解析调用 — 影响可能被低估</div>' : '')
     + f.symbols.map(s => '<div class="item" '+(DATA.repoUrl?'onclick="window.open(\''+DATA.repoUrl+'/'+path+'#L'+s.line+'\')"':'')+'><span>'+esc(s.name)+'</span><span class="kind">'+s.kind+' :'+s.line+'</span></div>').join("");
 }
 

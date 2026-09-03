@@ -25,6 +25,8 @@
   },
   "files": [
     "src",
+    "src/archmap-client.js",
+    "src/pr-silence.ts",
     "SKILL.md",
     "README.md",
     "LICENSE"
@@ -35,6 +37,7 @@
     "change": "bun run src/change-cli.ts",
     "archmap": "bun run src/archmap-html.ts",
     "demo": "bun run src/demo.ts",
+    "test": "bun test",
     "verify": "python3 eval/mutation_check.py"
   },
   "engines": { "bun": ">=1.0.0" },
