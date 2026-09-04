@@ -8,7 +8,8 @@
  * - 无 LLM 成分。
  * - 预留 service/api/queue 节点类型（v1 不产出）。
  */
-import { Database } from "bun:sqlite";
+import { openDatabase, type Database } from "./db";
+export type { Database } from "./db";
 
 export const NODE_KINDS = [
   "function",
@@ -137,7 +138,7 @@ CREATE INDEX IF NOT EXISTS idx_bindings_src_file ON import_bindings(src_file);
 `;
 
 export function openGraph(dbPath: string): Database {
-  const db = new Database(dbPath, { create: true });
+  const db = openDatabase(dbPath);
   db.exec("PRAGMA journal_mode = WAL;");
   db.exec(DDL);
   // 旧库迁移：signature 列不存在则补

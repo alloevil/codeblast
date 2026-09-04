@@ -7,19 +7,20 @@
  * - 测试目录单独归组;根目录散文件归 "(root)"
  * 输出 Mermaid flowchart（GitHub 原生渲染），节点带文件数,边带依赖强度。
  *
- * 用法: bun run src/archmap.ts <graph.db> [--out report.md]
+ * 用法: codeblast mermaid <graph.db> [--out report.md]
  */
-import { Database } from "bun:sqlite";
+import fs from "node:fs";
+import { openDatabase } from "./db";
 
 const [dbPath] = process.argv.slice(2);
 if (!dbPath) {
-  console.error("usage: bun run src/archmap.ts <graph.db> [--out file.md]");
+  console.error("usage: codeblast mermaid <graph.db> [--out file.md]");
   process.exit(1);
 }
 const outFlag = process.argv.indexOf("--out");
 const outPath = outFlag >= 0 ? process.argv[outFlag + 1] : undefined;
 
-const db = new Database(dbPath, { readonly: true });
+const db = openDatabase(dbPath, { readonly: true });
 
 const TEST_RE = /\.(test|spec)\.[cm]?[jt]sx?$|__tests__\/|(^|\/)tests?\/|(^|\/)test_[^/]*\.py$|_test\.py$|conftest\.py$/;
 
@@ -125,7 +126,7 @@ const doc = [
 ].join("\n");
 
 if (outPath) {
-  await Bun.write(outPath, doc);
+  fs.writeFileSync(outPath, doc);
   console.error(`written: ${outPath}`);
 } else {
   console.log(doc);

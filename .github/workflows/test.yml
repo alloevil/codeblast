@@ -15,5 +15,24 @@ jobs:
         with:
           persist-credentials: false
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
       - run: bun install --frozen-lockfile
+      - run: bun run typecheck
       - run: bun test
+      - run: bun run build
+      # 发布产物是 node 跑的：同一套源码在 node:sqlite 上必须给出同样的图
+      - name: Node smoke (dist)
+        run: |
+          node dist/bin.js index . --db /tmp/node.db > /tmp/node.json
+          bun src/bin.ts index . --db /tmp/bun.db > /tmp/bun.json
+          python3 -c "
+          import sqlite3
+          q = 'SELECT src, dst, kind, line FROM edges ORDER BY 1,2,3,4'
+          a = sqlite3.connect('/tmp/node.db').execute(q).fetchall()
+          b = sqlite3.connect('/tmp/bun.db').execute(q).fetchall()
+          assert a == b and len(a) > 0, f'node/bun graph mismatch: {len(a)} vs {len(b)}'
+          print(f'ok: {len(a)} edges identical across runtimes')
+          "
+          node dist/bin.js impact /tmp/node.db openDatabase --json | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['items'], 'empty impact'"

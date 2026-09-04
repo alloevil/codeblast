@@ -1,19 +1,19 @@
 /**
- * CLI: bun run src/impact-cli.ts <graph.db> <node-id-or-name> [--max 500]
+ * CLI: codeblast impact <graph.db> <node-id-or-name> [--max 500]
  * name 匹配多个节点时列出候选退出。
  */
-import { Database } from "bun:sqlite";
+import { openDatabase } from "./db";
 import { impact } from "./impact";
 
 const [dbPath, query] = process.argv.slice(2);
 if (!dbPath || !query) {
-  console.error("usage: bun run src/impact-cli.ts <graph.db> <node-id-or-name> [--max 500]");
+  console.error("usage: codeblast impact <graph.db> <node-id-or-name> [--max 500]");
   process.exit(1);
 }
 const maxFlag = process.argv.indexOf("--max");
 const maxNodes = maxFlag >= 0 ? Number(process.argv[maxFlag + 1]) : 500;
 
-const db = new Database(dbPath, { readonly: true });
+const db = openDatabase(dbPath, { readonly: true });
 
 let targetId = query;
 const exact = db.prepare("SELECT id FROM nodes WHERE id = ?").get(query);

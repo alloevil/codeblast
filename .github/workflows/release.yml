@@ -1,8 +1,7 @@
 name: Release
 
-# Tag push (vX.Y.Z) -> tests -> source tarball -> SLSA provenance -> GitHub Release with
-# <tarball> and <tarball>.intoto.jsonl attached. codeblast is installed from git
-# (`npx skills add alloevil/codeblast`), so there is no registry publish step.
+# Tag push (vX.Y.Z) -> tests -> build dist -> npm publish (provenance) -> GitHub Release with
+# <tarball> and <tarball>.intoto.jsonl attached. Requires repo secret NPM_TOKEN.
 on:
   push:
     tags: ['v*']
@@ -26,8 +25,12 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
+          registry-url: 'https://registry.npmjs.org'
       - run: bun install --frozen-lockfile
       - run: bun test
+      - run: bun run build
+      - name: Node smoke (dist)
+        run: node dist/bin.js index . --db /tmp/smoke.db && node dist/bin.js impact /tmp/smoke.db openDatabase --json > /dev/null
       - name: Check tag matches package.json
         run: |
           pkg="v$(node -p "require('./package.json').version")"
@@ -49,3 +52,6 @@ jobs:
           cp "${{ steps.attest.outputs.bundle-path }}" "$FILE.intoto.jsonl"
           gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "$TAG" --generate-notes
           gh release upload "$TAG" "$FILE" "$FILE.intoto.jsonl" --clobber
+      - run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

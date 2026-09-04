@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 /**
  * 统一 CLI 入口：codeblast <command> [args]
  *
@@ -9,19 +9,21 @@
  *   codeblast cochange <repo> <graph.db>
  *   codeblast pr-comment <repo> <base-sha> <head-sha>
  *   codeblast demo [repo]
+ *
+ * 运行时：node ≥ 22.13（node:sqlite）或 bun ≥ 1.0（bun:sqlite）。同一份源码，两种运行时。
+ * 子命令模块以顶层脚本形式读取 process.argv——这里先把 argv 整理成子命令视角再动态 import。
  */
-import path from "node:path";
 
-const ROUTES: Record<string, string> = {
-  index: "cli.ts",
-  impact: "impact-cli.ts",
-  change: "change-cli.ts",
-  archmap: "archmap-html.ts",
-  mermaid: "archmap.ts",
-  cochange: "cochange.ts",
-  "pr-comment": "pr-comment.ts",
-  demo: "demo.ts",
-  "name-modules": "name-modules.ts",
+const ROUTES: Record<string, () => Promise<unknown>> = {
+  index: () => import("./cli"),
+  impact: () => import("./impact-cli"),
+  change: () => import("./change-cli"),
+  archmap: () => import("./archmap-html"),
+  mermaid: () => import("./archmap"),
+  cochange: () => import("./cochange"),
+  "pr-comment": () => import("./pr-comment"),
+  demo: () => import("./demo"),
+  "name-modules": () => import("./name-modules"),
 };
 
 const [cmd, ...rest] = process.argv.slice(2);
@@ -44,6 +46,8 @@ docs: https://github.com/alloevil/codeblast · demos: https://alloevil.github.io
   process.exit(cmd && !ROUTES[cmd] ? 1 : 0);
 }
 
-const target = path.join(import.meta.dir, ROUTES[cmd]);
-const proc = Bun.spawnSync(["bun", "run", target, ...rest], { stdio: ["inherit", "inherit", "inherit"] });
-process.exit(proc.exitCode ?? 0);
+// 子命令脚本按 process.argv.slice(2) 取参：去掉子命令名，让它们看到自己的参数。
+process.argv.splice(2, 1);
+await ROUTES[cmd]();
+
+export {};

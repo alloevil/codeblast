@@ -9,7 +9,7 @@
  * 重命名匹配（GumTree 思路简化）：removed ∩ added 中，
  * 同文件 + 同 kind + 行号差 ≤ 30 → 判 rename（保守，误差记 add+remove 不算错）。
  */
-import { Database } from "bun:sqlite";
+import type { Database } from "./db";
 
 export interface NodeDelta { id: string; kind: string; name: string; file: string; line: number }
 export interface RenameDelta { from: string; to: string; file: string; kind: string }

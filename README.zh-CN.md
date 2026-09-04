@@ -38,22 +38,22 @@ LLM 在管线里只做一件事：给模块起人话名字——节点归属和�
 
 ```bash
 # 建图：TS monorepo / Python 自动识别，hash 增量更新（tRPC 950 文件全量 ~20s）
-bun run src/cli.ts <repo> --db graph.db
+codeblast index <repo> --db graph.db
 
 # ① Impact —— 改动前查影响半径
-bun run src/impact-cli.ts graph.db "createOrder" --json
+codeblast impact graph.db "createOrder" --json
 #    → direct 清单 = 必须检查的 callsite；tests 清单 = 必须跑的测试
 #    → 双通道：调用链可达（精确率 ~0.70,优先看）+ import 可达（保守补充,勿跳过）
 
 # ② Change Map —— 两个 ref 之间的结构 diff
-bun run src/change-cli.ts <repo> main~5 main --json
+codeblast change <repo> main~5 main --json
 #    → 意料之外的 edges_added = 改动越界信号
 
 # ③ Architecture Map —— 交互 HTML：模块→文件→符号三层下钻，符号跳源码行
-bun run src/archmap-html.ts graph.db --out arch.html --repo-url <github-url>
+codeblast archmap graph.db --out arch.html --repo-url <github-url>
 
 # 可选：git 历史耦合挖掘（协议两端、配置与消费者——静态分析看不见的边）
-bun run src/cochange.ts <repo> graph.db
+codeblast cochange <repo> graph.db
 ```
 
 ### PR bot（CI 内跑，宁静默不刷屏）

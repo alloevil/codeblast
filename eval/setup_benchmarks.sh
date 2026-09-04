@@ -32,13 +32,13 @@ PUPPETEER_SKIP_DOWNLOAD=true npm ci --ignore-scripts --no-audit --no-fund
 echo "== 建图 =="
 cd "$ATLAS"
 rm -f /tmp/trpc-full.db* /tmp/tabby.db* /tmp/graphql-tools.db*
-bun run src/cli.ts /tmp/trpc --db /tmp/trpc-full.db
-bun run src/cli.ts /tmp/tabby --db /tmp/tabby.db
-bun run src/cli.ts /tmp/graphql-tools --db /tmp/graphql-tools.db
-bun run src/cochange.ts /tmp/trpc /tmp/trpc-full.db --commits 300
+node dist/bin.js index /tmp/trpc --db /tmp/trpc-full.db
+node dist/bin.js index /tmp/tabby --db /tmp/tabby.db
+node dist/bin.js index /tmp/graphql-tools --db /tmp/graphql-tools.db
+node dist/bin.js cochange /tmp/trpc /tmp/trpc-full.db --commits 300
 
 echo "== 冒烟 =="
-bun run src/impact-cli.ts /tmp/trpc-full.db "createBuilder" --json | head -c 200; echo
+node dist/bin.js impact /tmp/trpc-full.db "createBuilder" --json | head -c 200; echo
 echo "OK — 验收命令:"
 echo "  python3 eval/mutation_check.py /tmp/trpc /tmp/trpc-full.db 10   # 召回率必须 100%"
 echo "  python3 eval/mutation_check.py /tmp/graphql-tools /tmp/graphql-tools.db 10   # jest 路径，召回率必须 100%"

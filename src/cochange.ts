@@ -7,13 +7,14 @@
  * - 只对"静态图上无任何边"的文件对产出（静态可达的耦合已有更准的边,不重复）。
  * - confidence 一律 "conservative"；存证据：共同提交次数与最近一次 sha。
  *
- * 用法: bun run src/cochange.ts <repo> <graph.db> [--commits 500]
+ * 用法: codeblast cochange <repo> <graph.db> [--commits 500]
  */
-import { Database } from "bun:sqlite";
+import { openDatabase, transaction } from "./db";
+import { spawnSync } from "./proc";
 
 const [repo, dbPath] = process.argv.slice(2);
 if (!repo || !dbPath) {
-  console.error("usage: cochange.ts <repo> <graph.db> [--commits 500]");
+  console.error("usage: codeblast cochange <repo> <graph.db> [--commits 500]");
   process.exit(1);
 }
 const cFlag = process.argv.indexOf("--commits");
@@ -22,7 +23,7 @@ const MIN_CO = 3;        // 至少 3 次一起改
 const MIN_RATIO = 0.5;   // 且条件概率 ≥ 50%
 const MAX_FILES_PER_COMMIT = 20; // 超过视为批量操作，无耦合信号
 
-const db = new Database(dbPath);
+const db = openDatabase(dbPath);
 
 // 图中已知文件集（只为图内文件建边）
 const known = new Set(
@@ -30,18 +31,18 @@ const known = new Set(
 );
 
 // git log 解析：每提交的文件清单
-const log = Bun.spawnSync(
+const log = spawnSync(
   ["git", "log", "--no-merges", `-${N_COMMITS}`, "--name-only", "--format=%x01%h"],
   { cwd: repo, maxBuffer: 64 * 1024 * 1024 },
 );
 if (log.exitCode !== 0) {
-  console.error(log.stderr.toString().slice(0, 300));
+  console.error(log.stderr.slice(0, 300));
   process.exit(1);
 }
 
 interface Commit { sha: string; files: string[] }
 const commits: Commit[] = [];
-for (const block of log.stdout.toString().split("\u0001")) {
+for (const block of log.stdout.split("\u0001")) {
   if (!block.trim()) continue;
   const lines = block.trim().split("\n");
   const sha = lines[0].trim();
@@ -84,7 +85,7 @@ const insert = db.prepare(
 );
 let emitted = 0;
 const samples: string[] = [];
-const writeAll = db.transaction(() => {
+const writeAll = transaction(db, () => {
   for (const [key, e] of pairFreq) {
     if (e.count < MIN_CO) continue;
     const [a, b] = key.split("\u0000");

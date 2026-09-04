@@ -1,7 +1,7 @@
 /**
  * 测试共用：内存 SQLite 图谱构造器。走 schema.ts 的真实 DDL,不复制表结构。
  */
-import { Database } from "bun:sqlite";
+import type { Database } from "../src/db";
 import { openGraph } from "../src/schema";
 import type { EdgeKind, NodeKind } from "../src/schema";
 

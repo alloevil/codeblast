@@ -1,3 +1,5 @@
+import fs from "node:fs";
+
 /**
  * M3 — overlay：架构图的用户修正层（intent.md：稳定坐标系 + 留存钩子）。
  *
@@ -24,9 +26,8 @@ export interface Overlay {
 }
 
 export async function loadOverlay(path: string): Promise<Overlay> {
-  const f = Bun.file(path);
-  if (!(await f.exists())) return { modules: {} };
-  return (await f.json()) as Overlay;
+  if (!fs.existsSync(path)) return { modules: {} };
+  return JSON.parse(fs.readFileSync(path, "utf8")) as Overlay;
 }
 
 /** 应用 overlay：返回 目录名 → { display, effective }。effective 是归并后的模块 key。 */
