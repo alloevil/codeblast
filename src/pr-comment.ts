@@ -2,14 +2,15 @@
  * M4 — PR bot 出口：CI 内运行，输出 PR 评论 Markdown。
  *
  * 用法（GitHub Actions 内）:
- *   bun run src/pr-comment.ts <repo> <base-sha> <head-sha> [--repo-url https://github.com/o/r]
+ *   codeblast pr-comment <repo> <base-sha> <head-sha> [--repo-url https://github.com/o/r]
  *
  * 呈现纪律（intent.md）：
  * - 结构无变化 → exit 0 且无输出（调用方跳过评论）——宁静默不刷屏。
  * - 有变化 → stdout 输出评论 Markdown：结构摘要 + 影响半径 + 无测试覆盖警告。
  */
-import { Database } from "bun:sqlite";
-import path from "node:path";
+import fs from "node:fs";
+import { openDatabase } from "./db";
+import { selfCommand, spawnSync } from "./proc";
 import { graphDiff, foldToModules } from "./graph-diff";
 import type { GraphDiff } from "./graph-diff";
 import { impact } from "./impact";
@@ -18,7 +19,7 @@ import { AUX_RE, TEST_RE, bodySignalCount, coreNamedCount, structuralTotal, type
 const args = process.argv.slice(2);
 const [repo, baseSha, headSha] = args;
 if (!repo || !baseSha || !headSha) {
-  console.error("usage: pr-comment.ts <repo> <base-sha> <head-sha> [--repo-url <url>]");
+  console.error("usage: codeblast pr-comment <repo> <base-sha> <head-sha> [--repo-url <url>]");
   process.exit(1);
 }
 const urlFlag = args.indexOf("--repo-url");
@@ -26,38 +27,38 @@ const repoUrl = urlFlag >= 0 ? args[urlFlag + 1] : undefined;
 
 async function buildGraphAt(ref: string, db: string): Promise<void> {
   // sha 级缓存：同一 commit 的图确定性相同，回放/连续 PR 更新时直接复用
-  const shaProc = Bun.spawnSync(["git", "rev-parse", ref], { cwd: repo });
-  const sha = shaProc.exitCode === 0 ? shaProc.stdout.toString().trim() : null;
+  const shaProc = spawnSync(["git", "rev-parse", ref], { cwd: repo });
+  const sha = shaProc.exitCode === 0 ? shaProc.stdout.trim() : null;
   const cache = sha ? `/tmp/codeblast-cache-${sha}.db` : null;
-  if (cache && (await Bun.file(cache).exists())) {
-    Bun.spawnSync(["cp", cache, db]);
+  if (cache && fs.existsSync(cache)) {
+    fs.copyFileSync(cache, db);
     return;
   }
   const wt = `/tmp/codeblast-pr-${ref.slice(0, 12)}`;
-  Bun.spawnSync(["git", "worktree", "remove", "--force", wt], { cwd: repo });
-  const add = Bun.spawnSync(["git", "worktree", "add", "--detach", wt, ref], { cwd: repo });
-  if (add.exitCode !== 0) throw new Error(add.stderr.toString().slice(0, 300));
+  spawnSync(["git", "worktree", "remove", "--force", wt], { cwd: repo });
+  const add = spawnSync(["git", "worktree", "add", "--detach", wt, ref], { cwd: repo });
+  if (add.exitCode !== 0) throw new Error(add.stderr.slice(0, 300));
   try {
-    const p = Bun.spawnSync(["bun", "run", path.join(import.meta.dir, "cli.ts"), wt, "--db", db]);
-    if (p.exitCode !== 0) throw new Error(p.stderr.toString().slice(0, 500));
+    const p = spawnSync(selfCommand("index", wt, "--db", db));
+    if (p.exitCode !== 0) throw new Error(p.stderr.slice(0, 500));
     // WAL checkpoint：否则 cp 只带走 .db 主文件，未合并事务全部丢失（幻影 diff 之源）
-    const ck = new Database(db);
+    const ck = openDatabase(db);
     ck.exec("PRAGMA wal_checkpoint(TRUNCATE);");
     ck.close();
-    if (cache) Bun.spawnSync(["cp", db, cache]);
+    if (cache) fs.copyFileSync(db, cache);
   } finally {
-    Bun.spawnSync(["git", "worktree", "remove", "--force", wt], { cwd: repo });
+    spawnSync(["git", "worktree", "remove", "--force", wt], { cwd: repo });
   }
 }
 
 const dbPathA = "/tmp/codeblast-pr-base.db";
 const dbPathB = "/tmp/codeblast-pr-head.db";
-for (const f of [dbPathA, dbPathB]) Bun.spawnSync(["rm", "-f", f, f + "-wal", f + "-shm"]);
+for (const f of [dbPathA, dbPathB]) for (const s of ["", "-wal", "-shm"]) fs.rmSync(f + s, { force: true });
 await buildGraphAt(baseSha, dbPathA);
 await buildGraphAt(headSha, dbPathB);
 
-const dbA = new Database(dbPathA, { readonly: true });
-const dbB = new Database(dbPathB, { readonly: true });
+const dbA = openDatabase(dbPathA, { readonly: true });
+const dbB = openDatabase(dbPathB, { readonly: true });
 const diff = graphDiff(dbA, dbB);
 const total = structuralTotal(diff);
 
@@ -66,10 +67,10 @@ const total = structuralTotal(diff);
 const structuralIds = new Set([...diff.nodesAdded.map((n) => n.id), ...diff.renamed.map((r) => `${r.file}#${r.to}`)]);
 const bodyChanged: BodyChange[] = [];
 {
-  const diffOut = Bun.spawnSync(
+  const diffOut = spawnSync(
     ["git", "diff", "--unified=0", baseSha, headSha, "--", "*.ts", "*.tsx"],
     { cwd: repo, maxBuffer: 64 * 1024 * 1024 },
-  ).stdout.toString();
+  ).stdout;
   const findFn = dbB.prepare(
     "SELECT id, name, kind, file, line FROM nodes WHERE file = ? AND kind IN ('function','method') AND line <= ? AND end_line >= ? ORDER BY (end_line - line) ASC LIMIT 1",
   );
@@ -193,10 +194,10 @@ if (uncovered.length > 0) {
 }
 // 最小信息量门槛：除 headline 外没有任何具名内容（无依赖/无影响行/无函数体改动）→ 静默。
 // 判定规则、阈值与案例见 pr-silence.ts。
-const diffLineCount = Bun.spawnSync(
+const diffLineCount = spawnSync(
   ["git", "diff", "--numstat", baseSha, headSha],
   { cwd: repo, maxBuffer: 16 * 1024 * 1024 },
-).stdout.toString().split("\n").reduce((sum, l) => {
+).stdout.split("\n").reduce((sum, l) => {
   const m = l.match(/^(\d+)\t(\d+)\t/);
   return sum + (m ? Number(m[1]) + Number(m[2]) : 0);
 }, 0);

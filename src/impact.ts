@@ -11,7 +11,7 @@
  *   结果项带 confidence，由呈现层决定折叠。宁误报不漏报。
  * - 影响集超阈值 → truncated=true，呈现层显示"广泛影响，建议全量测试"。
  */
-import { Database } from "bun:sqlite";
+import type { Database } from "./db";
 
 export interface ImpactItem {
   id: string;

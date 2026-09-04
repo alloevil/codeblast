@@ -58,7 +58,7 @@ RUNNER = detect_runner()
 
 def impact_test_files(node_id: str) -> set[str]:
     out = subprocess.run(
-        ["bun", "run", "src/impact-cli.ts", DB, node_id, "--max", "100000", "--json"],
+        ["node", "dist/bin.js", "impact", DB, node_id, "--max", "100000", "--json"],
         cwd=ATLAS, capture_output=True, text=True, timeout=120,
     )
     if out.returncode != 0:

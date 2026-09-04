@@ -10,13 +10,13 @@ description: Deterministic code-graph analysis for TypeScript and Python reposit
 
 ## 前置
 
-- 运行时：bun ≥1.0，python3（分析 Python 仓库时）
+- 运行时：node ≥ 22.13 或 bun ≥ 1.0；python3（分析 Python 仓库时）。安装：`npm i -g codeblast` 或直接 `npx codeblast <cmd>`
 - 目标仓库依赖已安装（node_modules 缺失会让外部调用沦为盲区）
 
 ## 1. 建图（其余命令的前提）
 
 ```bash
-bun run <codeblast>/src/cli.ts <repo-root> --db /tmp/graph.db
+codeblast index <repo-root> --db /tmp/graph.db
 ```
 
 - TS monorepo 自动发现 packages/apps/libs 各包 tsconfig；Python 自动 AST 摄取
@@ -26,7 +26,7 @@ bun run <codeblast>/src/cli.ts <repo-root> --db /tmp/graph.db
 ## 2. Impact —— 改这个会影响什么（改代码前必查）
 
 ```bash
-bun run <codeblast>/src/impact-cli.ts /tmp/graph.db "<符号名或文件路径>" --json
+codeblast impact /tmp/graph.db "<符号名或文件路径>" --json
 ```
 目标可传：符号名（重名时列出候选并退出,从候选复制完整 id 重查）、
 完整 id（`路径#符号` 或 `路径#类.方法`）、或文件相对路径。
@@ -44,7 +44,7 @@ call 通道 = 优先人工检查的核心项；完整清单 = 该跑的测试全
 顶层 `co_change_hints[]`：与目标文件历史上频繁一起变更、但静态图上无边的文件
 （如 HTTP 协议两端、配置与消费者）。属提示不属影响集——转述给用户时说
 "历史上常一起改,建议顺带检查"，不说"会被影响"。
-需先跑 `bun run <codeblast>/src/cochange.ts <repo> <graph.db>` 挖掘（可选步骤）。
+需先跑 `codeblast cochange <repo> <graph.db>` 挖掘（可选步骤）。
 
 **Agent 用法**：改一个导出符号前先查 impact，把 direct 列表作为必须检查的
 callsite 清单，把 tests 列表作为改完必须跑的测试集。`truncated=true` 表示
@@ -58,7 +58,7 @@ conservative 边可能误报（接口全连所有实现），但静态可分析�
 ## 3. Change Map —— 两个 ref 之间结构变了什么（review PR / 验收 agent 改动）
 
 ```bash
-bun run <codeblast>/src/change-cli.ts <repo-root> <ref-a> <ref-b> --json
+codeblast change <repo-root> <ref-a> <ref-b> --json
 ```
 
 返回：`nodes_added/removed`、`renamed`（重命名匹配,不算增删）、
@@ -72,15 +72,15 @@ bun run <codeblast>/src/change-cli.ts <repo-root> <ref-a> <ref-b> --json
 ## 4. Architecture Map —— 仓库结构总览
 
 ```bash
-bun run <codeblast>/src/archmap.ts /tmp/graph.db            # Mermaid（贴 PR/文档）
-bun run <codeblast>/src/archmap-html.ts /tmp/graph.db --out arch.html --repo-url <github-blob-url>  # 交互 HTML
+codeblast mermaid /tmp/graph.db            # Mermaid（贴 PR/文档）
+codeblast archmap /tmp/graph.db --out arch.html --repo-url <github-blob-url>  # 交互 HTML
 ```
 叠加模式（同一张图上画 ②③ 的结果）：
 ```bash
 # Impact 叠加: 影响半径着色（红=直接/金=测试/紫=传递,目标发光）
-bun run <codeblast>/src/archmap-html.ts head.db --impact "<符号>" --out impact.html
+codeblast archmap head.db --impact "<符号>" --out impact.html
 # Change 叠加: 两图 diff 着色（绿=新增/金=修改/紫=删除,顶栏带变更摘要）
-bun run <codeblast>/src/archmap-html.ts head.db --diff base.db --out change.html
+codeblast archmap head.db --diff base.db --out change.html
 ```
 
 模块折叠图 + 循环依赖检测（红色虚线）+ 每模块盲区计数。

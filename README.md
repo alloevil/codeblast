@@ -41,6 +41,9 @@ Built for humans (CLI / interactive HTML / PR comments) and for AI agents ([SKIL
 </table>
 
 ```bash
+npx codeblast demo            # build a graph of the current repo, run one impact query, emit the map
+npm i -g codeblast            # or install globally; needs Node ≥ 22.13 (built-in sqlite) or Bun
+
 # Install as an agent skill (Claude Code, Codex, Cursor, and 14 more harnesses)
 npx skills add alloevil/codeblast
 ```
@@ -60,30 +63,30 @@ The LLM does exactly one job in the pipeline: giving modules human-readable name
 ```bash
 # Build the graph: auto-detects TS monorepos / Python, hash-based incremental updates
 # (full build of tRPC, 950 files, in ~20s)
-bun run src/cli.ts <repo> --db graph.db
+codeblast index <repo> --db graph.db
 
 # ① Impact — check the blast radius before you change anything
-bun run src/impact-cli.ts graph.db "createOrder" --json
+codeblast impact graph.db "createOrder" --json
 #    → direct list = callsites you must review; tests list = tests you must run
 #    → two channels: call-graph reachable (precision ~0.70, read first)
 #      + import reachable (conservative supplement, don't skip)
 
 # ② Change Map — structural diff between two refs
-bun run src/change-cli.ts <repo> main~5 main --json
+codeblast change <repo> main~5 main --json
 #    → unexpected edges_added = a signal the change is out of scope
 
 # ③ Architecture Map — interactive HTML: module → file → symbol drill-down,
 #    symbols link to source lines
-bun run src/archmap-html.ts graph.db --out arch.html --repo-url <github-url>
+codeblast archmap graph.db --out arch.html --repo-url <github-url>
 
 # Optional: mine git co-change coupling (protocol pairs, config + consumers —
 # edges static analysis can't see)
-bun run src/cochange.ts <repo> graph.db
+codeblast cochange <repo> graph.db
 ```
 
 ### PR bot (runs in CI, stays quiet by default)
 
-Copy [`.github/workflows-template/codeblast.yml`](.github/workflows-template/codeblast.yml) into your repo:
+Copy [`.github/workflows-template/codeblast.yml`](.github/workflows-template/codeblast.yml) into your repo (it runs `npx codeblast pr-comment`, no other setup):
 every PR gets an automatic comment with structural changes + blast radius + new symbols with no test coverage; **PRs with no structural change get zero comments**.
 Replayed against 50 real commits: 42 correctly stayed silent, 87.5% of comments were useful.
 

@@ -1,14 +1,15 @@
 /**
  * M4 — Change Map CLI：
- *   bun run src/change-cli.ts <repo> <ref-a> <ref-b> [--out report.md]
- *   bun run src/change-cli.ts --dbs <a.db> <b.db>    （已有两份图谱直接 diff）
+ *   codeblast change <repo> <ref-a> <ref-b> [--out report.md]
+ *   codeblast change --dbs <a.db> <b.db>    （已有两份图谱直接 diff）
  *
  * 流程：worktree checkout 两个 ref → 各建图 → graphDiff → 模块折叠 →
  *       对每个变更节点跑 impact（新图上）→ Markdown 报告。
  * 呈现纪律（intent.md）：结构无变化 → 输出一行"无结构变化"，不生成长报告。
  */
-import { Database } from "bun:sqlite";
-import path from "node:path";
+import fs from "node:fs";
+import { openDatabase, type Database } from "./db";
+import { selfCommand, spawnSync } from "./proc";
 import { graphDiff, foldToModules, type GraphDiff } from "./graph-diff";
 import { impact } from "./impact";
 
@@ -19,39 +20,39 @@ const jsonMode = args.includes("--json");
 
 async function buildGraphAt(repo: string, ref: string, db: string): Promise<void> {
   const wt = `/tmp/codeblast-wt-${ref.replace(/[^\w]/g, "_")}`;
-  const sh = async (cmd: string[]) => {
-    const p = Bun.spawnSync(cmd, { cwd: repo });
-    if (p.exitCode !== 0) throw new Error(`${cmd.join(" ")}: ${p.stderr.toString().slice(0, 300)}`);
+  const sh = (cmd: string[]) => {
+    const p = spawnSync(cmd, { cwd: repo });
+    if (p.exitCode !== 0) throw new Error(`${cmd.join(" ")}: ${p.stderr.slice(0, 300)}`);
   };
-  Bun.spawnSync(["git", "worktree", "remove", "--force", wt], { cwd: repo });
-  await sh(["git", "worktree", "add", "--detach", wt, ref]);
+  spawnSync(["git", "worktree", "remove", "--force", wt], { cwd: repo });
+  sh(["git", "worktree", "add", "--detach", wt, ref]);
   try {
-    const p = Bun.spawnSync(["bun", "run", path.join(import.meta.dir, "cli.ts"), wt, "--db", db]);
-    if (p.exitCode !== 0) throw new Error(p.stderr.toString().slice(0, 500));
+    const p = spawnSync(selfCommand("index", wt, "--db", db));
+    if (p.exitCode !== 0) throw new Error(p.stderr.slice(0, 500));
   } finally {
-    Bun.spawnSync(["git", "worktree", "remove", "--force", wt], { cwd: repo });
+    spawnSync(["git", "worktree", "remove", "--force", wt], { cwd: repo });
   }
 }
 
 let dbA: Database, dbB: Database, header: string;
 if (args[0] === "--dbs") {
-  dbA = new Database(args[1], { readonly: true });
-  dbB = new Database(args[2], { readonly: true });
+  dbA = openDatabase(args[1], { readonly: true });
+  dbB = openDatabase(args[2], { readonly: true });
   header = `${args[1]} → ${args[2]}`;
 } else {
   const [repo, refA, refB] = args;
   if (!repo || !refA || !refB) {
-    console.error("usage: change-cli.ts <repo> <ref-a> <ref-b> [--out report.md] | --dbs <a.db> <b.db>");
+    console.error("usage: codeblast change <repo> <ref-a> <ref-b> [--out report.md] | --dbs <a.db> <b.db>");
     process.exit(1);
   }
   const pa = `/tmp/codeblast-diff-a.db`, pb = `/tmp/codeblast-diff-b.db`;
-  for (const f of [pa, pb]) Bun.spawnSync(["rm", "-f", f, f + "-wal", f + "-shm"]);
+  for (const f of [pa, pb]) for (const s of ["", "-wal", "-shm"]) fs.rmSync(f + s, { force: true });
   console.error(`building graph @ ${refA} ...`);
   await buildGraphAt(repo, refA, pa);
   console.error(`building graph @ ${refB} ...`);
   await buildGraphAt(repo, refB, pb);
-  dbA = new Database(pa, { readonly: true });
-  dbB = new Database(pb, { readonly: true });
+  dbA = openDatabase(pa, { readonly: true });
+  dbB = openDatabase(pb, { readonly: true });
   header = `${refA} → ${refB}`;
 }
 
@@ -135,7 +136,7 @@ if (impactSummary.length > 0) {
 
 const doc = lines.join("\n") + "\n";
 if (outPath) {
-  await Bun.write(outPath, doc);
+  fs.writeFileSync(outPath, doc);
   console.error(`written: ${outPath}`);
 } else {
   console.log(doc);

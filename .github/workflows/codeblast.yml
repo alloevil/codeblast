@@ -1,4 +1,4 @@
-# codeblast PR 结构分析 — 复制到目标仓库 .github/workflows/codeblast.yml
+# codeblast 自举：用当前提交构建的 dist 分析自己的 PR。对外模板见 workflows-template/。
 #
 # 行为：每个 PR 对比 base↔head 的代码图谱；有结构变化则评论（更新同一条评论），
 #       无结构变化保持静默。
@@ -18,39 +18,29 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
       - name: Install repo deps
         run: |
           if [ -f pnpm-lock.yaml ]; then corepack enable && pnpm install --ignore-scripts
-          elif [ -f bun.lock ] || [ -f bun.lockb ]; then bun install
+          elif [ -f bun.lock ] || [ -f bun.lockb ]; then npx --yes bun install
           elif [ -f package-lock.json ]; then npm ci --ignore-scripts
           fi
-      - name: Get codeblast
-        run: |
-          git clone --depth 1 https://github.com/alloevil/codeblast /tmp/codeblast
-          echo "lock=$(sha256sum /tmp/codeblast/bun.lock | cut -c1-16)" >> "$GITHUB_OUTPUT"
-        id: codeblast
-      # 依赖按 bun.lock 哈希缓存；命中时跳过 bun install（原每 PR ~40s）
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        id: codeblast-deps
-        with:
-          path: /tmp/codeblast/node_modules
-          key: codeblast-deps-${{ runner.os }}-${{ steps.codeblast.outputs.lock }}
-      - name: Install codeblast deps
-        if: steps.codeblast-deps.outputs.cache-hit != 'true'
-        run: cd /tmp/codeblast && bun install --frozen-lockfile
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      - run: bun install --frozen-lockfile && bun run build
       - name: Analyze
         id: analyze
         run: |
           set +e
-          bun run /tmp/codeblast/src/pr-comment.ts "$GITHUB_WORKSPACE" \
+          node dist/bin.js pr-comment "$GITHUB_WORKSPACE" \
             "${{ github.event.pull_request.base.sha }}" \
             "${{ github.event.pull_request.head.sha }}" \
             --repo-url "${{ github.server_url }}/${{ github.repository }}" > /tmp/comment.md
           echo "has_comment=$([ -s /tmp/comment.md ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
       - name: Comment
         if: steps.analyze.outputs.has_comment == 'true'
-        uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 # v3.0.5
+        uses: marocchino/sticky-pull-request-comment@v2
         with:
           header: codeblast
           path: /tmp/comment.md

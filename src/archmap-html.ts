@@ -8,15 +8,16 @@
  * - 循环依赖高亮；盲区计数展示
  * 数据内嵌 JSON;渲染用内嵌 SVG（无 CDN 依赖,离线可用）。
  *
- * 用法: bun run src/archmap-html.ts <graph.db> --out arch.html
+ * 用法: codeblast archmap <graph.db> --out arch.html
  */
-import { Database } from "bun:sqlite";
+import fs from "node:fs";
+import { openDatabase } from "./db";
 import { loadOverlay, applyOverlay } from "./overlay";
 import dagre from "@dagrejs/dagre";
 import { impact } from "./impact";
 import { graphDiff } from "./graph-diff";
 // 前端脚本独立成文件,构建期内联(DATA 声明仍由本文件输出)
-const CLIENT_JS = await Bun.file(new URL("./archmap-client.js", import.meta.url)).text();
+const CLIENT_JS = fs.readFileSync(new URL("./archmap-client.js", import.meta.url), "utf8");
 if (CLIENT_JS.includes("</script>")) throw new Error("archmap-client.js must not contain </script>");
 
 const [dbPath] = process.argv.slice(2);
@@ -31,11 +32,11 @@ const impactTarget = impactFlag >= 0 ? process.argv[impactFlag + 1] : undefined;
 const diffFlag = process.argv.indexOf("--diff");
 const diffBase = diffFlag >= 0 ? process.argv[diffFlag + 1] : undefined; // base graph.db 路径
 if (!dbPath) {
-  console.error("usage: bun run src/archmap-html.ts <graph.db> --out arch.html");
+  console.error("usage: codeblast archmap <graph.db> --out arch.html");
   process.exit(1);
 }
 
-const db = new Database(dbPath, { readonly: true });
+const db = openDatabase(dbPath, { readonly: true });
 const overlay = overlayPath ? await loadOverlay(overlayPath) : { modules: {} };
 const TEST_RE = /\.(test|spec)\.[cm]?[jt]sx?$|__tests__\/|(^|\/)tests?\/|(^|\/)test_[^/]*\.py$|_test\.py$|conftest\.py$/;
 const moduleOf = (file: string): string => {
@@ -195,7 +196,7 @@ interface DiffOverlay {
 }
 let diffOverlay: DiffOverlay | null = null;
 if (diffBase) {
-  const dbBase = new Database(diffBase, { readonly: true });
+  const dbBase = openDatabase(diffBase, { readonly: true });
   const d = graphDiff(dbBase, db);
   const fileStates: DiffOverlay["fileStates"] = {};
   const moduleCounts: DiffOverlay["moduleCounts"] = {};
@@ -374,5 +375,5 @@ ${CLIENT_JS}</script>
 </body>
 </html>`;
 
-await Bun.write(outPath, html);
+fs.writeFileSync(outPath, html);
 console.error(`written: ${outPath} (${(html.length / 1024).toFixed(0)}KB)`);

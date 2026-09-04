@@ -1,5 +1,5 @@
 /**
- * CLI: bun run src/cli.ts <repo-root-or-tsconfig> [--db <path>]
+ * CLI: codeblast index <repo-root-or-tsconfig> [--db <path>]
  *
  * - 参数是 tsconfig.json → 单 program 索引。
  * - 参数是目录 → 发现 monorepo 内全部包级 tsconfig（顶层 + packages/apps/libs 一级子目录），
@@ -12,10 +12,12 @@ import { createHash } from "node:crypto";
 import { openGraph, invalidateFile, type NodeRow, type EdgeRow, type BlindSpotRow } from "./schema";
 import type { ImportBindingRow } from "./schema";
 import { Extractor } from "./extract";
+import { transaction } from "./db";
+import { spawnSync } from "./proc";
 
 const args = process.argv.slice(2);
 if (args.length === 0) {
-  console.error("usage: bun run src/cli.ts <repo-root-or-tsconfig> [--db graph.db]");
+  console.error("usage: codeblast index <repo-root-or-tsconfig> [--db graph.db]");
   process.exit(1);
 }
 
@@ -77,7 +79,7 @@ const insertBinding = db.prepare(
 const upsertFile = db.prepare("INSERT OR REPLACE INTO files (path, hash) VALUES (?, ?)");
 const getHash = db.prepare("SELECT hash FROM files WHERE path = ?");
 
-const writeBatch = db.transaction(
+const writeBatch = transaction(db,
   (relPath: string, hash: string, nodes: NodeRow[], edges: EdgeRow[], blind: BlindSpotRow[], bindings: ImportBindingRow[] = []) => {
     invalidateFile(db, relPath);
     for (const n of nodes) insertNode.run(n.id, n.kind, n.name, n.file, n.line, n.end_line, n.exported, n.signature ?? "", n.src_file);
@@ -213,9 +215,9 @@ if (tsconfigs.length > 0 && orphans.length > 0) {
   }
 }
 // Python 摄取（方案 B：高置信边 only，Impact 仅文件级）
-const pyProbe = Bun.spawnSync(["python3", path.join(import.meta.dir, "py_extract.py"), repoRoot]);
+const pyProbe = spawnSync(["python3", path.join(import.meta.dirname, "py_extract.py"), repoRoot]);
 if (pyProbe.exitCode === 0) {
-  const payload = JSON.parse(pyProbe.stdout.toString()) as {
+  const payload = JSON.parse(pyProbe.stdout) as {
     files: { path: string; hash: string; nodes: NodeRow[]; edges: EdgeRow[]; blind_spots: BlindSpotRow[] }[];
   };
   for (const f of payload.files) {

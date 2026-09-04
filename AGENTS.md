@@ -34,8 +34,8 @@ eval/               验收 harness（变异测试、PR 回放）——改核心�
   ```bash
   # 基准环境不存在时（/tmp 被清）先重建: bash eval/setup_benchmarks.sh
   # 快速回归（tRPC 图已存在时 ~1min）
-  bun run src/cli.ts /tmp/trpc --db /tmp/trpc-full.db          # 应大量 skip
-  bun run src/impact-cli.ts /tmp/trpc-full.db "createBuilder" --json | head -c 500
+  bun run build && node dist/bin.js index /tmp/trpc --db /tmp/trpc-full.db   # 应大量 skip
+  node dist/bin.js impact /tmp/trpc-full.db "createBuilder" --json | head -c 500
   # 完整验收（改了边提取逻辑时，~30min）
   python3 eval/mutation_check.py /tmp/trpc /tmp/trpc-full.db 10  # 召回率必须 100%
   ```
@@ -50,5 +50,6 @@ eval/               验收 harness（变异测试、PR 回放）——改核心�
 - SQLite WAL：复制 .db 文件前必须 `PRAGMA wal_checkpoint(TRUNCATE)`（曾致幻影 diff）。
 - 跨包符号是 Alias：`getSymbolAtLocation` 后必须 `getAliasedSymbol`（曾丢全部跨包 extends）。
 - tsconfig include 之外的文件不进 program：cli.ts 的孤儿扫描兜底,别绕过它。
+- 双运行时：源码用 `bun src/bin.ts <cmd>` 直跑；发布产物 `dist/bin.js` 由 `bun run build` 打包、node ≥22.13 运行（node:sqlite）。SQLite/子进程只经 `src/db.ts` / `src/proc.ts`，禁止直接 import bun:sqlite 或调 Bun.*。
 - bun 在 /tmp 下运行脚本会解析错 node_modules——测试脚本放项目内跑。
 - 验收基准仓在 /tmp/trpc（deps 已装）与 /tmp/tabby（脏仓）；重装 deps 后盲区数会变。

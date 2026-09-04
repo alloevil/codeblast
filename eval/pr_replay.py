@@ -23,7 +23,7 @@ for i, line in enumerate(commits, 1):
     sha, _, subject = line.partition(" ")
     t0 = time.time()
     p = subprocess.run(
-        ["bun", "run", "src/pr-comment.ts", REPO, f"{sha}~1", sha],
+        ["node", "dist/bin.js", "pr-comment", REPO, f"{sha}~1", sha],
         cwd=ATLAS, capture_output=True, text=True, timeout=600,
     )
     dt = round(time.time() - t0, 1)

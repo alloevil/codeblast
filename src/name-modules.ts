@@ -5,22 +5,24 @@
  * 输入证据 = 每模块的文件清单 + 导出符号样本（确定性来自图谱）。
  * 输出写 codeblast.overlay.json 的 name 字段；已存在的用户 overlay 不覆盖。
  *
- * 用法: bun run src/name-modules.ts <graph.db> --overlay <path> [--model <cmd>]
+ * 用法: codeblast name-modules <graph.db> --overlay <path> [--model <cmd>]
  * LLM 调用通过环境命令（默认试 `omp -p` 风格不可用则跳过）：
  * 这里用最朴素的可插拔方式——stdin 进 prompt，stdout 出 JSON。
  */
-import { Database } from "bun:sqlite";
+import fs from "node:fs";
+import { openDatabase } from "./db";
+import { spawnSync } from "./proc";
 import { loadOverlay, type Overlay } from "./overlay";
 
 const [dbPath] = process.argv.slice(2);
 const overlayFlag = process.argv.indexOf("--overlay");
 const overlayPath = overlayFlag >= 0 ? process.argv[overlayFlag + 1] : "codeblast.overlay.json";
 if (!dbPath) {
-  console.error("usage: bun run src/name-modules.ts <graph.db> --overlay codeblast.overlay.json");
+  console.error("usage: codeblast name-modules <graph.db> --overlay codeblast.overlay.json");
   process.exit(1);
 }
 
-const db = new Database(dbPath, { readonly: true });
+const db = openDatabase(dbPath, { readonly: true });
 const TEST_RE = /\.(test|spec)\.[cm]?[jt]sx?$|__tests__\/|(^|\/)tests?\/|(^|\/)test_[^/]*\.py$|_test\.py$|conftest\.py$/;
 
 // 每模块的证据包：文件名 + 导出符号（最多各 15 个）
@@ -56,7 +58,7 @@ if (!cmd) {
   // 无 LLM 环境：stdout 输出 prompt，由调用方（agent/CI）完成推理后用 --apply 写回
   const applyFlag = process.argv.indexOf("--apply");
   if (applyFlag >= 0) {
-    const namesJson = JSON.parse(await Bun.file(process.argv[applyFlag + 1]).text()) as Record<string, { name: string; desc: string }>;
+    const namesJson = JSON.parse(fs.readFileSync(process.argv[applyFlag + 1], "utf8")) as Record<string, { name: string; desc: string }>;
     const overlay: Overlay = await loadOverlay(overlayPath);
     for (const [mod, v] of Object.entries(namesJson)) {
       const existing = overlay.modules[mod];
@@ -64,14 +66,14 @@ if (!cmd) {
       overlay.modules[mod] = { ...existing, name: `${v.name}`, ...(v.desc ? {} : {}) };
       (overlay.modules[mod] as Record<string, unknown>).desc = v.desc;
     }
-    await Bun.write(overlayPath, JSON.stringify(overlay, null, 2));
+    fs.writeFileSync(overlayPath, JSON.stringify(overlay, null, 2));
     console.error(`overlay written: ${overlayPath}`);
   } else {
     console.log(prompt);
   }
 } else {
-  const proc = Bun.spawnSync(["sh", "-c", cmd], { stdin: Buffer.from(prompt) });
-  const raw = proc.stdout.toString().trim();
+  const proc = spawnSync(["sh", "-c", cmd], { input: prompt });
+  const raw = proc.stdout.trim();
   const jsonStart = raw.indexOf("{");
   const namesJson = JSON.parse(raw.slice(jsonStart)) as Record<string, { name: string; desc: string }>;
   const overlay: Overlay = await loadOverlay(overlayPath);
@@ -80,6 +82,6 @@ if (!cmd) {
     overlay.modules[mod] = { ...overlay.modules[mod], name: v.name };
     (overlay.modules[mod] as Record<string, unknown>).desc = v.desc;
   }
-  await Bun.write(overlayPath, JSON.stringify(overlay, null, 2));
+  fs.writeFileSync(overlayPath, JSON.stringify(overlay, null, 2));
   console.error(`overlay written: ${overlayPath}`);
 }
