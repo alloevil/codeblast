@@ -43,7 +43,7 @@
   "engines": { "bun": ">=1.0.0" },
   "dependencies": {
     "@dagrejs/dagre": "^1.1.8",
-    "typescript": "^5.9.3"
+    "typescript": "^7.0.2"
   },
   "devDependencies": {
     "@types/node": "^26.4.0",
