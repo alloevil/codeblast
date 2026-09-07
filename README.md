@@ -94,9 +94,10 @@ Replayed against 50 real commits: 42 correctly stayed silent, 87.5% of comments 
 
 - **TypeScript at function level: zero missed impact within statically analyzable scope.** Verified by mutation testing:
   inject mutations into a real repo → run the full test suite to get the ground-truth impact set → compare against predictions.
-  Current benchmark (tRPC, 950 files): **28/28 mutations, 100% recall**, average precision 0.36 — favoring
-  false positives over false negatives is a deliberate trade: in a controlled experiment, dropping the conservative edges
-  raises precision to 0.70 but recall collapses to 14%. Data lives in [`eval/`](eval/).
+  Two benchmarks, both hard gates in the weekly acceptance workflow: **tRPC** (vitest, 950 files) **28/28**
+  and **graphql-tools** (jest + npm workspaces, 353 files) **10/10** — 100% recall on each, average precision
+  0.33–0.36. Favoring false positives over false negatives is a deliberate trade: in a controlled experiment,
+  dropping the conservative edges raises precision to 0.70 but recall collapses to 14%. Data lives in [`eval/`](eval/).
 - **Blind spots are explicitly flagged.** A blind spot is any call or import that static analysis cannot resolve to an in-repo target — dynamic calls, unresolved calls, failed external-dependency resolution, subprocess boundaries, test-framework globals — not just dynamic calls; each is recorded in `blind_spots` with an "impact may be underestimated" warning, never silently dropped.
 - **Python is file-level.** Dynamic typing makes function-level zero-miss guarantees impossible in principle, and we don't pretend otherwise.
 

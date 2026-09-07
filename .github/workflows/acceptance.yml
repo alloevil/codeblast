@@ -81,13 +81,13 @@ jobs:
             });
 
   # 第二基准：jest 跑器（graphql-tools, npm workspaces + babel-jest）。全程 ~5 分钟（装依赖 1min + 建图 10s + 10 变异 2min）。
-  # 2026-09-03 基线：recall 9/10 = 90%——已知引擎缺口（测试经 node_modules/graphql-yoga 再由 jest
-  # moduleNameMapper 映射回 packages/executor/src，引擎无此边）。缺口修复前 continue-on-error 只报不拦；
-  # 修复后删掉 continue-on-error 让它成为硬门槛。
+  # 2026-09-07: 硬门槛。此前记录的 9/10 = 90% 不是引擎缺口 —— 是 ground truth 被 flaky 测试污染
+  # （packages/loaders/url/tests/yoga-compat.spec.ts 的 SSE 用例只在全量负载下偶发失败，它不 import
+  # git loader）。mutation_check.py 现在对每个疑似漏报在“已还原源码”上复跑一遍：仍失败即判 flaky、
+  # 从 ground truth 扣除。同一个变异点复跑后 recall 1/1，全量 10 变异 10/10。
   mutation-recall-jest:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    continue-on-error: true
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
@@ -121,11 +121,29 @@ jobs:
           "
 
       - name: Mutation testing (jest) — recall must be 100%
+        id: mutation
         run: |
           python3 eval/mutation_check.py /tmp/graphql-tools /tmp/graphql-tools.db "${{ github.event.inputs.mutants || 10 }}" 2>&1 | tee /tmp/mutation-jest.log
           RECALL=$(grep -oP '^recall: \d+/\d+ = \K\d+' /tmp/mutation-jest.log || echo "0")
+          echo "recall=$RECALL" >> "$GITHUB_OUTPUT"
           tail -12 /tmp/mutation-jest.log >> "$GITHUB_STEP_SUMMARY"
           if [ "$RECALL" != "100" ]; then
             echo "::error::jest benchmark recall $RECALL% — below the 100% gate"
             exit 1
           fi
+
+      - name: Open issue on regression
+        if: failure() && github.event_name == 'schedule'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const fs = require('fs');
+            let log = '(log unavailable)';
+            try { log = fs.readFileSync('/tmp/mutation-jest.log', 'utf8').slice(-3000); } catch {}
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `acceptance regression — jest benchmark recall gate failed (${new Date().toISOString().slice(0,10)})`,
+              labels: ['acceptance-regression'],
+              body: `Weekly acceptance run failed the 100% recall gate on the jest benchmark (graphql-tools).\n\nRun: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}\n\n\`\`\`\n${log}\n\`\`\``,
+            });

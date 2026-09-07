@@ -148,8 +148,9 @@ Replayed over 50 real commits: 42 stayed silent, 87.5% of the comments posted we
 
 - TypeScript, function level: **zero missed impact within statically analyzable scope**, checked by
   mutation testing (inject a fault, run the real test suite, compare failing tests to the prediction).
-  tRPC benchmark, 950 files: 28/28 mutations recalled, precision 0.36 overall / ≈ 0.70 on the call channel.
-  The weekly acceptance workflow re-runs this and opens an issue if recall drops below 100%.
+  Two benchmarks: tRPC (vitest, 950 files) 28/28, graphql-tools (jest, 353 files) 10/10 — precision
+  0.33–0.36 overall, ≈ 0.70–0.92 on the call channel. Both are hard gates in the weekly acceptance
+  workflow, which opens an issue if either drops below 100%.
 - Conservative edges over-approximate on purpose (an interface method call fans out to every implementer).
 - Python: file-level; typed calls (`b = Builder(); b.method()`, annotated parameters) are function-level;
   untyped attribute chains fall back to file level and are recorded as blind spots.

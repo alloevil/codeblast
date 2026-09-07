@@ -1,0 +1,112 @@
+[
+  {
+    "node": "packages/loaders/url/src/index.ts#UrlLoader.getExecutorAsync",
+    "truth": 3,
+    "predicted": 14,
+    "missed": [],
+    "recall_hit": true,
+    "precision": 0.214,
+    "predicted_call": 3,
+    "call_recall_hit": false,
+    "precision_call": 0.667
+  },
+  {
+    "node": "packages/schema/src/makeExecutableSchema.ts#makeExecutableSchema",
+    "truth": 35,
+    "predicted": 40,
+    "missed": [],
+    "recall_hit": true,
+    "precision": 0.875,
+    "predicted_call": 17,
+    "call_recall_hit": false,
+    "precision_call": 0.941
+  },
+  {
+    "node": "packages/utils/src/get-arguments-with-directives.ts#getArgumentsWithDirectives",
+    "truth": 1,
+    "predicted": 78,
+    "missed": [],
+    "recall_hit": true,
+    "precision": 0.013,
+    "predicted_call": 1,
+    "call_recall_hit": true,
+    "precision_call": 1.0
+  },
+  {
+    "node": "packages/utils/src/filterSchema.ts#filterSchema",
+    "truth": 74,
+    "predicted": 78,
+    "missed": [],
+    "recall_hit": true,
+    "precision": 0.949,
+    "predicted_call": 1,
+    "call_recall_hit": false,
+    "precision_call": 1.0
+  },
+  {
+    "node": "packages/loaders/github/src/index.ts#GithubLoader.load",
+    "truth": 1,
+    "predicted": 11,
+    "missed": [],
+    "recall_hit": true,
+    "precision": 0.091,
+    "predicted_call": 1,
+    "call_recall_hit": true,
+    "precision_call": 1.0
+  },
+  {
+    "node": "packages/loaders/git/src/load-git.ts#parseGitTreeOutput",
+    "truth": 1,
+    "predicted": 10,
+    "missed": [],
+    "recall_hit": true,
+    "precision": 0.1,
+    "predicted_call": 1,
+    "call_recall_hit": true,
+    "precision_call": 1.0
+  },
+  {
+    "node": "packages/load/src/schema.ts#loadSchema",
+    "truth": 6,
+    "predicted": 10,
+    "missed": [],
+    "recall_hit": true,
+    "precision": 0.6,
+    "predicted_call": 1,
+    "call_recall_hit": false,
+    "precision_call": 1.0
+  },
+  {
+    "node": "packages/mock/src/MockStore.ts#MockStore.find",
+    "truth": 1,
+    "predicted": 6,
+    "missed": [],
+    "recall_hit": true,
+    "precision": 0.167,
+    "predicted_call": 1,
+    "call_recall_hit": true,
+    "precision_call": 1.0
+  },
+  {
+    "node": "packages/utils/src/errors.ts#locatedError",
+    "truth": 11,
+    "predicted": 80,
+    "missed": [],
+    "recall_hit": true,
+    "precision": 0.138,
+    "predicted_call": 14,
+    "call_recall_hit": false,
+    "precision_call": 0.571
+  },
+  {
+    "node": "packages/mock/src/mockServer.ts#mockServer",
+    "truth": 1,
+    "predicted": 6,
+    "missed": [],
+    "recall_hit": true,
+    "precision": 0.167,
+    "predicted_call": 1,
+    "call_recall_hit": true,
+    "precision_call": 1.0
+  }
+]
