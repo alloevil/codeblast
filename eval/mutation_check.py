@@ -90,6 +90,39 @@ def run_full_vitest() -> set[str] | None:
             return failed_files(json.loads(line))
     return None
 
+def run_tests_files(files: list[str]) -> set[str] | None:
+    """只跑给定测试文件,返回其中失败的（用于复核 flaky）。jest/vitest 都接受路径参数。"""
+    if not files:
+        return set()
+    if RUNNER == "jest":
+        fd, out_path = tempfile.mkstemp(prefix="jest-recheck-", suffix=".json")
+        os.close(fd)
+        try:
+            subprocess.run(
+                ["npx", "jest", "--ci", "--no-watchman", "--runTestsByPath", *files,
+                 "--json", f"--outputFile={out_path}"],
+                cwd=REPO, capture_output=True, text=True, timeout=1800,
+                env={**os.environ, "CI": "true", "NODE_NO_WARNINGS": "1",
+                     "NODE_OPTIONS": os.environ.get("NODE_OPTIONS", "--max-old-space-size=8192")},
+            )
+            try:
+                return failed_files(json.loads(Path(out_path).read_text()))
+            except (OSError, ValueError):
+                return None
+        finally:
+            try:
+                os.unlink(out_path)
+            except OSError:
+                pass
+    out = subprocess.run(
+        ["pnpm", "vitest", "run", "--reporter=json", "--passWithNoTests", *files],
+        cwd=REPO, capture_output=True, text=True, timeout=1800,
+    )
+    for line in reversed(out.stdout.splitlines()):
+        if line.startswith("{"):
+            return failed_files(json.loads(line))
+    return None
+
 def run_full_jest() -> set[str] | None:
     """jest 全量：--json --outputFile 落盘（stdout 混有 console 输出，不可靠）。"""
     fd, out_path = tempfile.mkstemp(prefix="jest-", suffix=".json")
@@ -161,6 +194,24 @@ def main():
             results.append({"node": node_id, "note": "mutant not killed (dead code path or type-only)"})
             done += 1
             continue
+        # Ground truth must mean "failed *because of* the mutation". A single baseline run cannot
+        # see intermittently failing tests (graphql-tools has network/SSE suites that fail only
+        # under full-suite load), and such a test lands in `truth` as a phantom miss — that is
+        # exactly how the recorded 9/10 came about. Re-run the apparent misses now that the
+        # source is restored: still failing ⇒ flaky, not caused by the mutation.
+        suspect = sorted(truth - predicted)
+        if suspect:
+            recheck = run_tests_files(suspect)
+            if recheck is None:
+                print(f"    recheck unparsable for {suspect}; keeping them in ground truth")
+            elif recheck:
+                print(f"    flaky on clean source, dropped from ground truth: {sorted(recheck)}")
+                truth -= recheck
+                baseline |= recheck   # 同一个 flaky 不必在后续变异上再跑一遍
+                if not truth:
+                    results.append({"node": node_id, "note": "mutant not killed (only flaky tests failed)"})
+                    done += 1
+                    continue
         missed = truth - predicted
         missed_call = truth - predicted_call
         precision = len(truth) / len(predicted) if predicted else 0.0
