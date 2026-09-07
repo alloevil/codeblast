@@ -3,97 +3,153 @@ name: codeblast
 description: Deterministic code-graph analysis for TypeScript and Python repositories. Use when the user asks what breaks if I change this, wants an impact analysis or blast radius before editing a symbol, asks for a repository architecture map grounded in real code, or wants to know what structurally changed between two git refs or in a PR. Unlike LLM-drawn diagrams, every node and edge is extracted by compiler-grade static analysis and carries file:line evidence; impact answers are conservative (no false negatives within the static analysis boundary; dynamic blind spots are explicitly reported, never silently dropped).
 ---
 
-# codeblast — 图谱 · 影响 · 结构变更
+# codeblast — impact · change · architecture, with evidence on every edge
 
-三个确定性查询，全部基于编译器级静态分析（TS：tsc API；Python：AST，文件级），
-每条结论带 file:line 证据。**不是** LLM 画图工具：图的内容来自代码事实，不来自模型理解。
+Three deterministic queries over a graph built by `tsc` (TypeScript, function-level) and the
+Python AST (file-level with typed-call upgrades). Every result carries the `file:line` where the
+dependency actually occurs. The graph comes from the code, not from a model's reading of it.
 
-## 前置
+## When to run it
 
-- 运行时：node ≥ 22.13 或 bun ≥ 1.0；python3（分析 Python 仓库时）。安装：`npm i -g codeblast` 或直接 `npx codeblast <cmd>`
-- 目标仓库依赖已安装（node_modules 缺失会让外部调用沦为盲区）
+| Situation | Command | What you get back |
+|---|---|---|
+| About to edit an exported symbol | `codeblast impact <db> "<symbol>" --json` | The callsites you must review and the tests you must run |
+| Finished a multi-file change; verifying scope | `codeblast change <repo> HEAD~1 HEAD --json` | Symbols and dependency edges added / removed / renamed |
+| Need to understand an unfamiliar repo | `codeblast archmap <db> --out arch.html` | Module → file → symbol map with cycle detection |
+| Reviewing a PR | `codeblast pr-comment <repo> <base> <head>` | Markdown review comment; empty output when nothing structural changed |
 
-## 1. 建图（其余命令的前提）
+Prerequisites: Node ≥ 22.13 or Bun ≥ 1.0 (`npx codeblast` works with no install); `python3` for Python
+repos; the target repo's dependencies installed (missing `node_modules` turns external calls into blind spots).
+
+## Interpretation rules — read before running
+
+These are the mistakes an agent makes with this tool. Each one has produced a wrong answer in practice.
+
+1. **Never present the impact list as complete when `blind_spot_count > 0`.** A blind spot is any call or
+   import static analysis could not resolve to an in-repo target: dynamic calls, unresolved calls, failed
+   external resolution, subprocess boundaries, test-framework globals. Say "impact may be underestimated".
+2. **Never drop the `file` channel to make the list shorter.** Items with `channel: "call"` are the
+   high-confidence core (measured precision ≈ 0.70). Items with `channel: "file"` reach the target only
+   through import / re-export edges. Cutting them raised precision but collapsed recall from 100% to 14%
+   in a controlled run — tests often call the target from inside anonymous callbacks the call graph
+   cannot see. Use `call` items as what to read first; use the full list as what to test.
+3. **Never claim function-level precision for Python.** Python is file-level with typed-call upgrades;
+   there is no zero-miss promise. Say so when reporting on a Python repo.
+4. **`truncated: true` means the impact is wide** (over `--max`, default 500). Recommend the full test
+   suite; do not enumerate a partial list as if it were the whole.
+5. **`co_change_hints` are not impact.** They are files that historically changed together with the
+   target but have no static edge (protocol pairs, config + consumer). Report them as "historically
+   co-changed, worth a look", never as "affected".
+6. **Cite `via_file:via_line`** when you tell the user something depends on the target. That is the
+   real location of the dependency and can be opened to check.
+7. **This is not a diagram generator.** `archmap` outputs facts for navigation. For a presentation
+   diagram, feed its JSON to a rendering tool; do not ask codeblast to make it pretty.
+
+## 1. Build the graph (required first; incremental afterwards)
 
 ```bash
 codeblast index <repo-root> --db /tmp/graph.db
 ```
 
-- TS monorepo 自动发现 packages/apps/libs 各包 tsconfig；Python 自动 AST 摄取
-- 增量：重跑只处理 hash 变化的文件
-- 输出 JSON 统计：files_indexed / nodes / edges / blind_spots
+Auto-discovers every package `tsconfig.json` in a monorepo and ingests Python via AST. Re-running only
+processes files whose content hash changed. Stdout is one JSON object:
 
-## 2. Impact —— 改这个会影响什么（改代码前必查）
+```json
+{ "db": "...", "seconds": 19.4, "tsconfigs": 12, "files_indexed": 950, "files_skipped": 0,
+  "nodes": 14200, "edges": 31800, "blind_spots": 412, "failures": 0 }
+```
+
+Non-zero exit with `failures > 0` means the graph is incomplete — do not query it; report the failure.
+
+## 2. Impact — what breaks if I change this
 
 ```bash
-codeblast impact /tmp/graph.db "<符号名或文件路径>" --json
+codeblast impact /tmp/graph.db "<symbol-name | full-id | file-path>" --json [--max 500]
 ```
-目标可传：符号名（重名时列出候选并退出,从候选复制完整 id 重查）、
-完整 id（`路径#符号` 或 `路径#类.方法`）、或文件相对路径。
-`--json` 输出可能很大（数百 item），建议重定向或管道给 jq。
 
-返回 `items[]`：每项含 `level`（direct=直接调用方 / indirect=传递可达 / tests=受影响测试）、
-`hops`、`confidence`（exact / conservative）、`via_file:via_line`（依赖发生的证据行）。
-每项还有 `channel`：`call`=全程函数级调用链可达（高置信,实测精确率 ~0.70）；
-`file`=途经 import/re-export 文件级边（保守补充）。
-**禁止只取 call 通道当完整清单**——实测砍掉 file 通道召回率从 100% 跌到 14%
-（测试常在匿名回调里调用被测函数,函数级链路断裂）。正确用法：
-call 通道 = 优先人工检查的核心项；完整清单 = 该跑的测试全集。
-`tests` 级按测试路径惯例判定（`*.test.*`/`*.spec.*`/`tests/` 目录/`test_*.py`），
-测试目录下的 fixture 也会被保守计入——按去重后的文件数估算测试成本。
-顶层 `co_change_hints[]`：与目标文件历史上频繁一起变更、但静态图上无边的文件
-（如 HTTP 协议两端、配置与消费者）。属提示不属影响集——转述给用户时说
-"历史上常一起改,建议顺带检查"，不说"会被影响"。
-需先跑 `codeblast cochange <repo> <graph.db>` 挖掘（可选步骤）。
+Target forms: a bare symbol name (if ambiguous, the command lists candidates and exits 1 — pick the
+full id and re-run), a full id `path/to/file.ts#Symbol` or `path/to/file.ts#Class.method`, or a file
+path relative to the repo root.
 
-**Agent 用法**：改一个导出符号前先查 impact，把 direct 列表作为必须检查的
-callsite 清单，把 tests 列表作为改完必须跑的测试集。`truncated=true` 表示
-影响过广，建议全量测试。`blind_spot_count>0` 表示该文件有静态无法解析到仓内目标的调用/导入，清单可能不全。
+Output (`--json`):
 
-**语义边界**：TS 为函数级零漏报（静态可分析范围内）。Python 为混合级：
-具名导入调用/类型可推断的方法调用（`b = Builder(); b.method()`、参数注解）为函数级,
-无类型信息的属性链调用仍为文件级兜底+盲区标注——Python 无零漏报承诺。
-conservative 边可能误报（接口全连所有实现），但静态可分析范围内不漏报。
+```ts
+{
+  target: string;                 // resolved full id
+  truncated: boolean;             // hit --max; impact is wide
+  blind_spot_count: number;       // unresolved calls/imports in the target's file (rule 1)
+  items: Array<{
+    id: string; name: string; kind: string; file: string; line: number;
+    level: "direct" | "indirect" | "tests";   // 1 hop | 2+ hops | a test that reaches the target
+    hops: number;
+    confidence: "exact" | "conservative";     // weakest edge on the path; conservative = interface fan-out etc.
+    channel: "call" | "file";                 // rule 2
+    named_miss?: boolean;                     // file channel only: an import on the path did not name the target
+    via_file: string; via_line: number;       // where the dependency occurs (rule 6)
+  }>;
+  co_change_hints: Array<{ file: string; co_commits: number; evidence: string }>;  // rule 5
+}
+```
 
-## 3. Change Map —— 两个 ref 之间结构变了什么（review PR / 验收 agent 改动）
+How to use it: `items.filter(level === "direct")` is the callsite checklist. `items.filter(level ===
+"tests")` de-duplicated by `file` is the test set to run. Test-directory fixtures are included
+conservatively; estimate test cost by distinct files, not item count.
+
+`co_change_hints` is populated only after `codeblast cochange <repo> /tmp/graph.db` (optional).
+
+## 3. Change — what structurally changed between two refs
 
 ```bash
 codeblast change <repo-root> <ref-a> <ref-b> --json
+codeblast change --dbs <a.db> <b.db> --json        # two graphs already built
 ```
 
-返回：`nodes_added/removed`、`renamed`（重命名匹配,不算增删）、
-`edges_added/removed`（新增/删除的调用与 import 依赖）、`modules`（模块级聚合）、
-`impact[]`（每个新增符号的影响半径）。`structural_changes: 0` = 纯实现细节改动，无结构变化。
+Output when nothing structural changed: `{ "range": "...", "structural_changes": 0 }`. Otherwise:
 
-**Agent 用法**：agent 完成一次多文件修改后，用 HEAD~1..HEAD 自查——
-`edges_added` 里出现意料之外的依赖 = 改动越界的信号；
-声称"只是重构"但 `nodes_removed` 非空 = 丢了东西。
+```ts
+{
+  range: string; structural_changes: number;
+  nodes_added: Node[]; nodes_removed: Node[];          // Node = { id, kind, name, file, line }
+  renamed: Array<{ from, to, file, kind }>;             // matched rename, not counted as add + remove
+  edges_added: Edge[]; edges_removed: Edge[];           // Edge = { src, dst, kind, file, line }
+  modules: Record<string, { added, removed, renamed, edgesIn, edgesOut }>;
+  impact: Array<{ symbol, kind, impact_nodes, affected_tests, truncated }>;   // per added/renamed symbol
+}
+```
 
-## 4. Architecture Map —— 仓库结构总览
+Self-check after an edit: an unexpected entry in `edges_added` is a new dependency the task did not call
+for; a non-empty `nodes_removed` under a "pure refactor" means something was dropped.
+
+## 4. Architecture map
 
 ```bash
-codeblast mermaid /tmp/graph.db            # Mermaid（贴 PR/文档）
-codeblast archmap /tmp/graph.db --out arch.html --repo-url <github-blob-url>  # 交互 HTML
+codeblast mermaid /tmp/graph.db                                   # Mermaid, for PR descriptions / docs
+codeblast archmap /tmp/graph.db --out arch.html --repo-url <github-blob-url>   # interactive HTML
+codeblast archmap head.db --impact "<symbol>" --out impact.html   # blast radius painted on the map
+codeblast archmap head.db --diff base.db --out change.html        # structural diff painted on the map
 ```
-叠加模式（同一张图上画 ②③ 的结果）：
+
+Modules collapse by top-level directory; circular dependencies are drawn as red dashed edges; each
+module shows its blind-spot count. The HTML drills module → file → symbol, and symbols link to source
+lines when `--repo-url` is given. `--overlay codeblast.overlay.json` renames / merges / hides modules
+(the file is meant to be committed; the map's ✎ mode generates it).
+
+## 5. PR comment (CI)
+
 ```bash
-# Impact 叠加: 影响半径着色（红=直接/金=测试/紫=传递,目标发光）
-codeblast archmap head.db --impact "<符号>" --out impact.html
-# Change 叠加: 两图 diff 着色（绿=新增/金=修改/紫=删除,顶栏带变更摘要）
-codeblast archmap head.db --diff base.db --out change.html
+codeblast pr-comment <repo> <base-sha> <head-sha> [--repo-url <url>]
 ```
 
-模块折叠图 + 循环依赖检测（红色虚线）+ 每模块盲区计数。
-HTML 版支持模块→文件→符号三层下钻，符号点击跳 GitHub 源码行。
-可选 `--overlay codeblast.overlay.json`：模块人话名/隐藏/归并（进 git，用户改过的名字不被覆盖）。
-交互图内置 **✎ 编辑模块** 模式：图上直接改名、合并（选中→"合并到…"→点目标）、隐藏，
-右侧实时生成 overlay JSON，可复制或下载为 `codeblast.overlay.json` 落盘持久化。
+Exit 0 with empty stdout when there is nothing structural to say — the workflow template in
+`.github/workflows-template/codeblast.yml` posts a sticky comment only when stdout is non-empty.
+Replayed over 50 real commits: 42 stayed silent, 87.5% of the comments posted were judged useful.
 
-## 解读纪律（必须遵守）
+## Precision, stated
 
-1. 引用结论时带证据：impact 项的 `via_file:via_line` 是依赖发生的真实位置，可直接打开核对。
-2. 盲区（blind_spots）= 静态无法解析到仓内目标的调用/导入（含动态调用、未解析调用、外部依赖解析失败、子进程边界、测试框架全局），并非只有动态调用。
-   报告影响时如实转述"影响可能被低估"，禁止假装清单完整。
-3. Python 仓库禁止宣称函数级精度——它是文件级的。
-4. 不要用本工具做"架构美图"——它输出事实,不输出演示品；要精美演示图用 archify 一类渲染工具，
-   但可以把本工具的 JSON 输出作为其事实输入。
+- TypeScript, function level: **zero missed impact within statically analyzable scope**, checked by
+  mutation testing (inject a fault, run the real test suite, compare failing tests to the prediction).
+  tRPC benchmark, 950 files: 28/28 mutations recalled, precision 0.36 overall / ≈ 0.70 on the call channel.
+  The weekly acceptance workflow re-runs this and opens an issue if recall drops below 100%.
+- Conservative edges over-approximate on purpose (an interface method call fans out to every implementer).
+- Python: file-level; typed calls (`b = Builder(); b.method()`, annotated parameters) are function-level;
+  untyped attribute chains fall back to file level and are recorded as blind spots.
