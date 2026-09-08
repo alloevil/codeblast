@@ -4,6 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>codeblast · Live Architecture Maps</title>
+<meta name="description" content="codeblast is a deterministic code graph CLI that answers what breaks before you merge: impact blast radius, structural PR diffs, interactive architecture maps.">
+<link rel="canonical" href="https://alloevil.github.io/codeblast/">
+<meta property="og:url" content="https://alloevil.github.io/codeblast/">
+<meta property="og:title" content="codeblast — deterministic code graph: impact, change &amp; architecture maps">
+<meta property="og:description" content="Know what breaks before you merge: mutation-tested impact analysis (tRPC 28/28 recall), structural change maps, interactive architecture maps.">
+<meta property="og:image" content="https://github.com/alloevil/codeblast/raw/main/assets/readme/impact-overlay.png">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
 <style>
   :root { --bg:#0d1117; --panel:#161b22; --border:#30363d; --fg:#e6edf3; --dim:#8b949e;
           --accent:#58a6ff; --red:#f85149; --ok:#3fb950; }
@@ -23,6 +31,25 @@
   .foot { margin-top: 40px; color: var(--dim); font-size: 13px; }
   .foot a { color: var(--accent); }
 </style>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "codeblast",
+  "description": "Deterministic code graph engine for TypeScript and Python that answers three questions about any code change: what breaks (impact blast radius), what changed structurally (change map), and what the project looks like (architecture map). Every node and edge carries file:line evidence.",
+  "applicationCategory": "DeveloperApplication",
+  "operatingSystem": "macOS, Linux, Windows",
+  "url": "https://alloevil.github.io/codeblast/",
+  "codeRepository": "https://github.com/alloevil/codeblast",
+  "programmingLanguage": "TypeScript",
+  "license": "https://opensource.org/licenses/MIT",
+  "isAccessibleForFree": true,
+  "softwareVersion": "0.3.0",
+  "softwareRequirements": "Node.js >= 22.13.0 or Bun",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+  "author": { "@type": "Person", "name": "allo", "url": "https://github.com/alloevil" }
+}
+</script>
 </head>
 <body>
 <main>

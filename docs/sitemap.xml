@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <!-- Pages only: assets are deliberately excluded. LAUNCH.html is served but omitted
+       as an unpublished draft; it is also Disallowed in robots.txt. -->
+  <url><loc>https://alloevil.github.io/codeblast/</loc></url>
+  <url><loc>https://alloevil.github.io/codeblast/codeblast-arch.html</loc></url>
+  <url><loc>https://alloevil.github.io/codeblast/sgp-arch.html</loc></url>
+  <url><loc>https://alloevil.github.io/codeblast/tabby-arch.html</loc></url>
+  <url><loc>https://alloevil.github.io/codeblast/trpc-arch.html</loc></url>
+  <url><loc>https://alloevil.github.io/codeblast/trpc-change-demo.html</loc></url>
+  <url><loc>https://alloevil.github.io/codeblast/trpc-impact-demo.html</loc></url>
+</urlset>
