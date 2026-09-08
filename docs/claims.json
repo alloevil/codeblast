@@ -1,0 +1,88 @@
+{
+  "project": "codeblast",
+  "url": "https://alloevil.github.io/codeblast/",
+  "repository": "https://github.com/alloevil/codeblast",
+  "updated": "2026-09-08",
+  "claims": [
+    {
+      "id": "trpc-mutation-impact-recall",
+      "claim": "On the tRPC benchmark, codeblast's predicted affected-test set contained every test file that actually failed, for all 28 mutants the test suite killed.",
+      "value": "28/28",
+      "metric": "mutation-testing recall: fraction of killed mutants whose real failing-test file set is a subset of the predicted affected-test file set",
+      "method": "30 mutants injected one at a time into test-covered TypeScript functions (throw on the function's first line); the full vitest suite is run per mutant to obtain the ground-truth failing-test files; the file is then restored. 2 of the 30 mutants were not killed by the suite (dead code path or type-only) and are excluded from the ratio.",
+      "repro": "bash eval/setup_benchmarks.sh && python3 eval/mutation_check.py /tmp/trpc /tmp/trpc-full.db 30",
+      "evidence": "https://github.com/alloevil/codeblast/blob/main/eval/mutation-2026-08-28-trpc-n30.json",
+      "verified": "2026-09-08"
+    },
+    {
+      "id": "trpc-mutation-impact-precision",
+      "claim": "Mean precision of the tRPC impact prediction over the same 28 killed mutants is 0.358, so most predicted affected tests did not fail.",
+      "value": "0.358",
+      "metric": "arithmetic mean of per-mutant precision (predicted affected tests that really failed / predicted affected tests), both channels combined",
+      "method": "Same mutation run as trpc-mutation-impact-recall; the per-mutant precision field of the 28 killed mutants is averaged. Over-approximation is deliberate: the engine prefers false positives to false negatives.",
+      "repro": "python3 -c \"import json,statistics;d=json.load(open('eval/mutation-2026-08-28-trpc-n30.json'));print(round(statistics.mean([e['precision'] for e in d if 'precision' in e]),3))\"",
+      "evidence": "https://github.com/alloevil/codeblast/blob/main/eval/mutation-2026-08-28-trpc-n30.json",
+      "verified": "2026-09-08"
+    },
+    {
+      "id": "graphql-tools-mutation-impact-recall",
+      "claim": "On the graphql-tools benchmark (npm workspaces + jest), all 10 mutants were recalled with no missed affected test file.",
+      "value": "10/10",
+      "metric": "mutation-testing recall on a second benchmark repository, using the jest runner",
+      "method": "Same harness with --runner jest against ardatan/graphql-tools. Suspected misses are re-run on restored source; a test that still fails without the mutation is judged flaky and removed from the ground truth. Mean precision over the 10 mutants is 0.331.",
+      "repro": "bash eval/setup_benchmarks.sh && python3 eval/mutation_check.py /tmp/graphql-tools /tmp/graphql-tools.db 10 --runner jest",
+      "evidence": "https://github.com/alloevil/codeblast/blob/main/eval/mutation-2026-09-07-graphql-tools-n10.json",
+      "verified": "2026-09-08"
+    },
+    {
+      "id": "call-channel-precision",
+      "claim": "On a 15-mutant tRPC run the call-graph channel alone reaches mean precision 0.744, while the combined two-channel prediction recalls 15 of 15 mutants.",
+      "value": "0.744",
+      "metric": "arithmetic mean of per-mutant precision_call (call-graph-reachable predictions only)",
+      "method": "15-mutant run recording both channels per mutant: precision for the combined call+import prediction and precision_call for the call-graph-reachable subset. recall_hit is true for all 15 mutants.",
+      "repro": "python3 -c \"import json,statistics;d=json.load(open('eval/mutation-2026-08-31-trpc-n15.json'));print(round(statistics.mean([e['precision_call'] for e in d]),3), sum(e['recall_hit'] for e in d), len(d))\"",
+      "evidence": "https://github.com/alloevil/codeblast/blob/main/eval/mutation-2026-08-31-trpc-n15.json",
+      "verified": "2026-09-08"
+    },
+    {
+      "id": "call-only-channel-recall-collapse",
+      "claim": "Dropping the conservative import channel and keeping only call-graph edges raises call-channel precision to 0.702 but collapses recall to 2 of 14 killed mutants.",
+      "value": "2/14 (14%)",
+      "metric": "recall of a call-graph-only impact prediction, and the mean precision it buys, on a controlled channel-ablation run",
+      "method": "Channel ablation on tRPC: for each mutant both the combined prediction and the call-only prediction are scored against the same ground truth. 1 of 15 mutants was not killed by the suite and is excluded, leaving 14; call_recall_hit is true for 2 of them and mean precision_call is 0.702.",
+      "repro": "python3 -c \"import json,statistics;d=[e for e in json.load(open('eval/mutation-2026-08-28-trpc-n15-channel.json')) if 'precision' in e];print(sum(e['call_recall_hit'] for e in d), len(d), round(statistics.mean([e['precision_call'] for e in d]),3))\"",
+      "evidence": "https://github.com/alloevil/codeblast/blob/main/eval/mutation-2026-08-28-trpc-n15-channel.json",
+      "verified": "2026-09-08"
+    },
+    {
+      "id": "pr-bot-silence-rate",
+      "claim": "Replayed over 50 consecutive real tRPC commits, the PR bot produced no comment on 42 of them and completed all 50 runs without error.",
+      "value": "42/50 silent, 8 comments, 50/50 runs ok",
+      "metric": "count of replayed commits for which pr-comment emitted empty stdout, over 50 non-merge commits",
+      "method": "eval/pr_replay.py walks 50 non-merge commits of trpc/trpc origin/main and runs pr-comment on each commit against its parent, recording ok, silent, seconds and comment_lines per commit.",
+      "repro": "bash eval/setup_benchmarks.sh && python3 eval/pr_replay.py 0 /tmp/pr-replay",
+      "evidence": "https://github.com/alloevil/codeblast/blob/main/eval/pr-replay-2026-08-28-trpc-n50.json",
+      "verified": "2026-09-08"
+    },
+    {
+      "id": "pr-comment-usefulness-independent-review",
+      "claim": "Independent blind review rated the PR bot's comments 25%, 75%, 57% and 20% useful across four rounds, all below the project's own 87.5% self-rating of the first window.",
+      "value": "25% / 75% / 57% / 20% independent; 7/8 = 87.5% self-rated",
+      "metric": "share of emitted PR comments rated useful rather than noise or misleading, by a blind reviewer that did not build the tool",
+      "method": "Four rounds recorded in intent.md: 2/8 on the first replay window, 9/12 on a second 50-commit window, 4/7 on a third window (skip=100), 1/5 on a re-run of that window after fixes. The 87.5% figure is the author agent rating its own 8 comments; intent.md records the gap as evidence of reviewer bias. Reviewed comment bodies are committed under eval/pr-replay-2026-08-28-window2 (12 files) and eval/pr-replay-2026-08-28-window3 (7 files).",
+      "repro": "python3 eval/pr_replay.py 100 /tmp/pr-replay, then re-rate the comments against eval/pr-replay-2026-08-28-window3",
+      "evidence": "https://github.com/alloevil/codeblast/blob/main/intent.md",
+      "verified": "2026-09-08"
+    },
+    {
+      "id": "graph-scale-sentinels",
+      "claim": "The weekly acceptance workflow fails the build if the tRPC graph drops below 900 files or 15000 edges, or the graphql-tools graph below 300 files or 8000 edges.",
+      "value": "tRPC > 900 files and > 15000 edges; graphql-tools > 300 files and > 8000 edges",
+      "metric": "hard assertions on files and edges row counts in the generated SQLite graph, used as sentinels against silent file loss",
+      "method": "The acceptance workflow indexes each benchmark repo, asserts the row counts, then runs mutation testing behind a 100% recall gate; a scheduled failure opens an issue labelled acceptance-regression.",
+      "repro": "gh workflow run acceptance.yml -R alloevil/codeblast",
+      "evidence": "https://github.com/alloevil/codeblast/blob/main/.github/workflows/acceptance.yml",
+      "verified": "2026-09-08"
+    }
+  ]
+}

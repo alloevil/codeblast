@@ -1,0 +1,35 @@
+# codeblast
+
+> codeblast is a deterministic code graph CLI that tells a developer or an AI agent what breaks before a change is merged.
+
+It parses a repository with the TypeScript compiler API (and the Python stdlib AST) into a
+function-level SQLite graph where every node and edge carries `file:line` evidence, then projects
+that graph three ways: `impact` (blast radius of changing a symbol, split into direct, transitive and
+affected tests), `change` (structural diff between two git refs: symbols and dependency edges added,
+removed, renamed) and `archmap` (interactive module to file to symbol drill-down with
+circular-dependency detection). No LLM decides membership or edges; an LLM only names modules.
+Install with `npx codeblast demo` or `npm i -g codeblast` (Node >= 22.13 or Bun), or as an agent skill
+with `npx skills add alloevil/codeblast`.
+
+## Docs
+- [Live architecture map demos](https://alloevil.github.io/codeblast/): index of the five generated showcase maps
+- [tRPC architecture map](https://alloevil.github.io/codeblast/trpc-arch.html): 950 files, 8 packages, client to server one-way dependency
+- [tRPC impact overlay](https://alloevil.github.io/codeblast/trpc-impact-demo.html): blast radius of `createFlatProxy` painted on the map
+- [tRPC change map](https://alloevil.github.io/codeblast/trpc-change-demo.html): structural diff of one real commit
+- [Tabby architecture map](https://alloevil.github.io/codeblast/tabby-arch.html): Angular/Electron "dirty repo" benchmark with dynamic-injection blind spots labelled
+- [sgp architecture map](https://alloevil.github.io/codeblast/sgp-arch.html): Python file-level support
+- [codeblast architecture map](https://alloevil.github.io/codeblast/codeblast-arch.html): the tool analysing itself
+- [README](https://github.com/alloevil/codeblast/blob/main/README.md): the three queries, commands and precision bounds
+- [SKILL.md](https://github.com/alloevil/codeblast/blob/main/SKILL.md): the agent contract and interpretation discipline
+
+## Evidence
+- [claims.json](https://alloevil.github.io/codeblast/claims.json): every number below with metric, method, repro command and evidence path
+- [tRPC mutation run, 30 mutants](https://github.com/alloevil/codeblast/blob/main/eval/mutation-2026-08-28-trpc-n30.json): impact recall 28/28 on killed mutants, mean precision 0.358
+- [graphql-tools mutation run, 10 mutants](https://github.com/alloevil/codeblast/blob/main/eval/mutation-2026-09-07-graphql-tools-n10.json): recall 10/10 with the jest runner, mean precision 0.331
+- [Channel ablation, 15 mutants](https://github.com/alloevil/codeblast/blob/main/eval/mutation-2026-08-28-trpc-n15-channel.json): call-graph edges only give precision 0.702 but recall 2/14
+- [PR bot replay, 50 commits](https://github.com/alloevil/codeblast/blob/main/eval/pr-replay-2026-08-28-trpc-n50.json): 42 of 50 real commits produced no comment
+- [intent.md](https://github.com/alloevil/codeblast/blob/main/intent.md): acceptance log, including the independent blind reviews that rated PR comments 25%, 75%, 57% and 20% useful
+- [acceptance workflow](https://github.com/alloevil/codeblast/blob/main/.github/workflows/acceptance.yml): the weekly 100% recall gate on both benchmarks
+
+## Source
+- [GitHub repository](https://github.com/alloevil/codeblast)

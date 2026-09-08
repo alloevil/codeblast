@@ -1,0 +1,194 @@
+# codeblast
+
+codeblast is a deterministic code graph CLI that tells a developer or an AI agent what breaks before a change is merged.
+
+## What it is
+
+codeblast parses a repository with the TypeScript compiler API (function level) and the Python stdlib
+AST (file level, with typed-call upgrades) into a single-file SQLite graph in which every node and every
+edge carries the `file:line` where the dependency actually occurs. It then projects that one graph three
+ways: `impact` answers "what breaks if I change this symbol", split into direct callers, transitive
+dependents and affected test files; `change` answers "what did this PR structurally change" as symbols
+and dependency edges added, removed or renamed between two git refs; `archmap` answers "what does this
+project look like" as an interactive HTML map with module to file to symbol drill-down, symbol links
+into source lines and circular-dependency detection. No language model decides node membership or edge
+existence — an LLM is used for exactly one job, giving clustered modules human-readable names. The same
+graph serves two front ends: humans read the CLI, the HTML maps and an optional PR comment bot; AI
+agents read the `--json` outputs through the contract in SKILL.md.
+
+## Install
+
+```bash
+npx codeblast demo            # build a graph of the current repo, run one impact query, emit the map
+npm i -g codeblast            # or install globally
+npx skills add alloevil/codeblast   # install as an agent skill
+```
+
+Requirements, from `package.json` and SKILL.md: Node >= 22.13.0 (for built-in SQLite) or Bun, plus
+`python3` if the target repo contains Python. The target repository's own dependencies must be
+installed — a missing `node_modules` turns external calls into blind spots. Current version is 0.3.0,
+licensed MIT.
+
+## Quickstart
+
+```bash
+# 1. Build the graph (required first; re-runs only reprocess files whose content hash changed)
+codeblast index <repo-root> --db graph.db
+
+# 2. Blast radius of a symbol, before you touch it
+codeblast impact graph.db "createFlatProxy" --json
+
+# 3. Structural diff of a change you already made
+codeblast change <repo-root> HEAD~1 HEAD --json
+
+# 4. Interactive architecture map
+codeblast archmap graph.db --out arch.html --repo-url https://github.com/<owner>/<repo>
+
+# 5. Optional: git co-change coupling, for edges static analysis cannot see
+codeblast cochange <repo-root> graph.db
+```
+
+`codeblast index` prints one JSON object including `files_indexed`, `nodes`, `edges`, `blind_spots` and
+`failures`; a non-zero exit with `failures > 0` means the graph is incomplete and must not be queried.
+For CI, copy `.github/workflows-template/codeblast.yml` into the target repo: it runs
+`npx codeblast pr-comment` and posts a sticky comment only when stdout is non-empty.
+
+## Verifiable claims
+
+Machine-readable versions of all of these, with metric, method, repro command and evidence path, are at
+https://alloevil.github.io/codeblast/claims.json.
+
+1. **tRPC impact recall 28/28 (100%).** 30 mutants were injected one at a time into test-covered
+   TypeScript functions of trpc/trpc; the full vitest suite was run per mutant to get the ground-truth
+   set of failing test files, and recall counts a mutant as a hit only when the predicted affected-test
+   set contains all of them. 2 of the 30 mutants were not killed by the suite (dead code path or
+   type-only) and are excluded. Repro:
+   `bash eval/setup_benchmarks.sh && python3 eval/mutation_check.py /tmp/trpc /tmp/trpc-full.db 30`.
+   Evidence: https://github.com/alloevil/codeblast/blob/main/eval/mutation-2026-08-28-trpc-n30.json
+2. **tRPC mean precision 0.358 over the same 28 mutants.** Most predicted affected tests do not fail.
+   This is the deliberate cost of preferring false positives to false negatives. Repro: average the
+   per-mutant `precision` field of the same file. Evidence: same file as claim 1.
+3. **graphql-tools impact recall 10/10 (100%), mean precision 0.331.** Second benchmark repository,
+   npm workspaces with babel-jest, run through the same harness with `--runner jest`. Suspected misses
+   are re-run on restored source; a test that still fails without the mutation is judged flaky and
+   removed from the ground truth. Repro:
+   `python3 eval/mutation_check.py /tmp/graphql-tools /tmp/graphql-tools.db 10 --runner jest`.
+   Evidence: https://github.com/alloevil/codeblast/blob/main/eval/mutation-2026-09-07-graphql-tools-n10.json
+4. **Call-graph channel mean precision 0.744, with combined recall 15/15.** A 15-mutant tRPC run
+   records both channels per mutant: `precision` for the combined call plus import prediction and
+   `precision_call` for the call-graph-reachable subset. Evidence:
+   https://github.com/alloevil/codeblast/blob/main/eval/mutation-2026-08-31-trpc-n15.json
+5. **Call-only prediction: precision 0.702, recall 2/14 (14%).** A controlled channel ablation scored
+   the call-only prediction against the same ground truth as the combined one. Dropping the conservative
+   import channel buys precision and destroys recall, because tests frequently reach the target from
+   inside anonymous callbacks the call graph cannot see. This is why the `file` channel exists and why
+   SKILL.md forbids agents from discarding it. Evidence:
+   https://github.com/alloevil/codeblast/blob/main/eval/mutation-2026-08-28-trpc-n15-channel.json
+6. **PR bot silence: 42 of 50 real commits produced no comment, 50 of 50 runs completed.**
+   `eval/pr_replay.py` walked 50 consecutive non-merge commits of trpc/trpc and ran `pr-comment` on each
+   against its parent. Repro: `python3 eval/pr_replay.py 0 /tmp/pr-replay`. Evidence:
+   https://github.com/alloevil/codeblast/blob/main/eval/pr-replay-2026-08-28-trpc-n50.json
+7. **PR comment usefulness under independent blind review: 25%, then 75%, then 57%, then 20%.**
+   Four review rounds are logged in intent.md (2/8, 9/12, 4/7, 1/5). The 87.5% figure that appears in
+   older project text is the authoring agent rating its own eight comments; intent.md keeps both numbers
+   side by side and treats the gap as measured evidence of reviewer bias. Treat 57-75% as the optimistic
+   band and 20-25% as the pessimistic one; the reviewed comment bodies are committed under
+   `eval/pr-replay-2026-08-28-window2/` (12 comments) and `eval/pr-replay-2026-08-28-window3/`
+   (7 comments) so the rating can be redone. Evidence:
+   https://github.com/alloevil/codeblast/blob/main/intent.md
+8. **The 100% recall promise is a CI gate, not a slogan.** The weekly `acceptance` workflow indexes both
+   benchmark repositories, asserts graph scale (tRPC over 900 files and over 15000 edges; graphql-tools
+   over 300 files and over 8000 edges) as a sentinel against silent file loss, then fails the run and
+   opens an issue labelled `acceptance-regression` if mutation recall is not 100%. Evidence:
+   https://github.com/alloevil/codeblast/blob/main/.github/workflows/acceptance.yml
+
+Numbers deliberately not claimed here: node and edge totals for the benchmark graphs (the showcase page
+and the SKILL.md example disagree because they were generated by different engine versions), the
+co-change pair count, and the unit-test count.
+
+## When to use it
+
+- You are about to change an exported TypeScript symbol in a monorepo and want the callsite list and the
+  test list before you edit, not after CI fails.
+- You are an AI agent editing code and need the affected symbols in context so a rename or signature
+  change does not silently miss a call site; `impact --json` before the edit, `change --json` after it.
+- You are reviewing a PR and want the structural delta (edges added, symbols renamed, new symbols with
+  no test coverage) separated from formatting noise.
+- You have just inherited an unfamiliar TypeScript or Python repository and want a navigable map whose
+  every box and arrow can be opened at the source line that justifies it.
+- You need the answer to be checkable by someone who does not trust the tool, because every claim
+  carries `file:line`.
+
+## When NOT to use it
+
+- **You want function-level guarantees on Python.** Python support is file level with typed-call
+  upgrades. Duck typing and dynamic dispatch make a zero-miss promise impossible in principle and the
+  project refuses to pretend otherwise.
+- **You want a small, precise impact list.** Mean precision is 0.33-0.36 overall (about 0.70-0.92 on the
+  call channel). The engine over-approximates on purpose; an interface method call fans out to every
+  implementer. Read the `call` channel first and treat the full list as the test set.
+- **Your dependency graph runs through things static analysis cannot resolve** — dynamic `require`,
+  `eval`, subprocess boundaries, uninstalled dependencies, test-framework globals. These are recorded in
+  `blind_spots` with an explicit "impact may be underestimated" warning rather than dropped, but a
+  repository dominated by them will get a thin graph.
+- **You want a presentation diagram or a collaborative canvas.** `archmap` emits facts for navigation.
+  Rendering a pretty picture is out of scope; feed the JSON to a diagram tool instead.
+- **You want cross-service or cross-repository edges, or Java support.** The graph model reserves the
+  node types but v1 does not populate those edges, and Java is explicitly not implemented.
+- **You want the PR bot to be a review substitute.** Independent blind review put comment usefulness
+  between 20% and 75% depending on the round and the rater's criteria. It is a structural-change signal,
+  not a reviewer.
+
+## Compared to LLM-generated diagram tools
+
+The comparison the repository actually makes is a mechanism comparison, not a feature checklist:
+
+| | How the graph is produced | Can a claim be checked |
+|---|---|---|
+| LLM diagram tools | a model reads the code and draws a graph | no — the graph is the model's opinion |
+| codeblast | `tsc` / Python AST parse produces nodes and edges; an LLM only names modules | yes — every node, edge and conclusion carries `file:line` |
+
+The design record (`intent.md`) states the rule behind this: layer L1, the graph, must be deterministic,
+and an LLM is permitted only at layer L2, the folding and naming layer. It cites the failure of
+LLM-welded edges as unverifiable as the reason. That same record also fixes what codeblast deliberately
+does not try to be: not a general code-retrieval context engine, not a code-health scoring product, not
+a collaborative canvas, and not a cross-service graph in v1. Those boundaries are scope decisions taken
+by the project; this document makes no claim about how any named third-party product performs.
+
+## FAQ
+
+**What does codeblast actually guarantee?** Within the statically analyzable scope of an in-repo
+TypeScript codebase, the predicted set of affected test files is a superset of the tests that really
+fail — verified by mutation testing on two independent repositories (trpc/trpc, 28/28 killed mutants;
+ardatan/graphql-tools, 10/10) and enforced weekly in CI, which opens an issue if recall drops below
+100%. The guarantee is always stated with that scope attached: anything static analysis cannot resolve
+is listed as a blind spot, and the project bans unqualified "zero miss" wording.
+
+**Why is precision so low, and is that a bug?** Mean precision is 0.358 on the 28-mutant tRPC run and
+0.331 on the 10-mutant graphql-tools run, meaning most predicted affected tests do not fail. It is a
+deliberate trade, and it was measured: a controlled ablation that kept only call-graph edges raised
+call-channel precision to 0.702 but dropped recall to 2 of 14 killed mutants. A 2026-09-03 attempt to
+raise precision by pruning pure re-export barrel files and narrowing interface fan-out was rejected by
+the data because it would have caused guaranteed misses, so precision is no longer an optimization
+target.
+
+**Does it work on Python?** Yes, at file level, with typed-call upgrades that resolve named-import
+calls and simple constructor or annotation-derived method calls. That is enough for the architecture
+map and a file-level change map, and `impact` reaches method level in practice, but the zero-miss
+promise remains TypeScript-only. The sgp showcase map at
+https://alloevil.github.io/codeblast/sgp-arch.html is the Python example, including a detected
+circular dependency between `sgp_utils` and `solver_transfer`.
+
+**How do I use it from an AI coding agent?** Install it as a skill with
+`npx skills add alloevil/codeblast`, then call `codeblast impact <db> "<symbol>" --json` before editing
+and `codeblast change <repo> HEAD~1 HEAD --json` after editing. SKILL.md carries the interpretation
+rules that matter: never present the impact list as complete while `blind_spot_count > 0`, never drop
+the `file` channel to shorten the list, never claim function-level precision on Python, treat
+`truncated: true` as "recommend the full suite", and never report `co_change_hints` as impact.
+
+**Is the PR bot noisy?** By construction it is silent when nothing structural changed: replayed over 50
+real tRPC commits it emitted nothing on 42 of them and never failed. Whether the remaining comments are
+worth reading is the honest weak point — four rounds of independent blind review scored 25%, 75%, 57%
+and 20% useful, with failures concentrated in zero-impact changes to auxiliary directories and in
+type-surface changes that older engine versions did not treat as structural. Both classes have since
+been addressed and both the ratings and the fixes are logged in intent.md.
