@@ -52,12 +52,17 @@ codeblast index <repo-root> --db /tmp/graph.db
 ```
 
 Auto-discovers every package `tsconfig.json` in a monorepo and ingests Python via AST. Re-running only
-processes files whose content hash changed. Stdout is one JSON object:
+processes files whose content hash changed. Stdout is one JSON object — this is a real run of
+`codeblast index` against [tRPC](https://github.com/trpc/trpc) at commit `66d0544` with codeblast 0.3.0
+(timing is machine-dependent; the counts are not):
 
 ```json
-{ "db": "...", "seconds": 19.4, "tsconfigs": 12, "files_indexed": 950, "files_skipped": 0,
-  "nodes": 14200, "edges": 31800, "blind_spots": 412, "failures": 0 }
+{ "db": "/tmp/graph.db", "seconds": 5.2, "tsconfigs": 34, "files_indexed": 957, "files_skipped": 0,
+  "nodes": 6248, "edges": 17072, "blind_spots": 14725, "failures": 0 }
 ```
+
+Note that `blind_spots` is routinely large on a real TypeScript monorepo — it counts unresolved and
+dynamic references, not errors. Judge graph health by `failures`, not by `blind_spots`.
 
 Non-zero exit with `failures > 0` means the graph is incomplete — do not query it; report the failure.
 

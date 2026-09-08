@@ -83,6 +83,16 @@
       "repro": "gh workflow run acceptance.yml -R alloevil/codeblast",
       "evidence": "https://github.com/alloevil/codeblast/blob/main/.github/workflows/acceptance.yml",
       "verified": "2026-09-08"
+    },
+    {
+      "id": "trpc-graph-scale-measured",
+      "claim": "Indexing the tRPC monorepo produces a 6248-node, 17072-edge graph across 957 files with zero failures.",
+      "value": "957 files, 6248 nodes, 17072 edges, 14725 blind spots, 0 failures",
+      "metric": "row counts reported by `codeblast index` for the generated SQLite graph; blind_spots counts unresolved and dynamic references, which is expected to be large on a real TypeScript monorepo and is not an error count",
+      "method": "Single `codeblast index` run of published codeblast 0.3.0 against a shallow clone of trpc/trpc at commit 66d0544. Deterministic given the same commit and version; counts drift with upstream commits, so the commit is part of the claim. Wall-clock seconds are machine-dependent and deliberately not claimed.",
+      "repro": "git clone --depth=1 https://github.com/trpc/trpc.git && git -C trpc checkout 66d0544 && npx codeblast@0.3.0 index ./trpc --db /tmp/graph.db",
+      "evidence": "https://github.com/alloevil/codeblast/blob/main/SKILL.md#1-build-the-graph-required-first-incremental-afterwards",
+      "verified": "2026-09-08"
     }
   ]
 }

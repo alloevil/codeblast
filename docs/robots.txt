@@ -1,11 +1,7 @@
 User-agent: *
 Allow: /
 # Advisory file: robots.txt is origin-scoped at the root path, so crawlers read
-# https://alloevil.github.io/robots.txt and never this subpath copy. The two Disallow
-# lines below are MIRRORED in that authoritative root file (repo alloevil/alloevil.github.io,
-# robots.txt). They exist because docs/LAUNCH.md is an unpublished draft that Jekyll also
-# serves as LAUNCH.html. If that file moves out of docs/, delete these lines in BOTH places.
-Disallow: /codeblast/LAUNCH.md
-Disallow: /codeblast/LAUNCH.html
+# https://alloevil.github.io/robots.txt and never this subpath copy. Kept as fleet
+# convention and in case this project ever moves to its own domain.
 
 Sitemap: https://alloevil.github.io/codeblast/sitemap.xml
