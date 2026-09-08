@@ -1,4 +1,6 @@
 User-agent: *
 Allow: /
+Disallow: /codeblast/LAUNCH.md
+Disallow: /codeblast/LAUNCH.html
 
 Sitemap: https://alloevil.github.io/codeblast/sitemap.xml
