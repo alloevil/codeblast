@@ -158,3 +158,9 @@ Agent conventions: [AGENTS.md](AGENTS.md).
 M0 graph engine → M1 Impact → M3 architecture map → M4 graph diff + PR bot → M5 precision extensions — **all milestones accepted** (each with a reproducible acceptance script). Single source of truth for design and acceptance criteria: [intent.md](intent.md).
 
 MIT © 2026
+
+---
+
+<p align="center">
+  <a href="https://github.com/oil-oil/beautify-github-readme"><img src="./assets/readme/made-with-beautify.svg" width="300" alt="README made with beautify-github-readme"></a>
+</p>
