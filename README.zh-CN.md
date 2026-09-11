@@ -131,3 +131,9 @@ Agent 规范另见 [AGENTS.md](AGENTS.md)。
 M0 图谱引擎 → M1 Impact → M3 架构图 → M4 图 diff + PR bot → M5 精度扩展，**全部验收通过**（每项含可复现验收脚本）。方案与验收标准的单一事实源：[intent.md](intent.md)。
 
 MIT © 2026
+
+---
+
+<p align="center">
+  <a href="https://github.com/oil-oil/beautify-github-readme"><img src="./assets/readme/made-with-beautify.svg" width="300" alt="README made with beautify-github-readme"></a>
+</p>

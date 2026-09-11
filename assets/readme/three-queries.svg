@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 170" width="100%" role="img" aria-labelledby="tqTitle tqDesc">
+  <title id="tqTitle">The three codeblast queries: impact, change and archmap</title>
+  <desc id="tqDesc">impact checks the blast radius before a change with codeblast impact graph.db "createOrder" --json; change computes a structural diff between two refs with codeblast change repo main~5 main --json; archmap writes an interactive module, file and symbol drill-down with codeblast archmap graph.db --out arch.html.</desc>
+
+  <defs>
+    <clipPath id="tqFrame"><rect width="1200" height="170" rx="18"/></clipPath>
+  </defs>
+
+  <g clip-path="url(#tqFrame)">
+    <rect width="1200" height="170" fill="#0d1117"/>
+
+    <g id="query-impact" transform="translate(56,10)">
+      <rect width="348" height="150" rx="12" fill="#161b22" stroke="#30363d"/>
+      <circle cx="24" cy="34" r="5.5" fill="#f85149"/>
+      <text x="40" y="41" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="20" font-weight="700" fill="#e6edf3">impact</text>
+      <text x="24" y="78" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="18" fill="#8b949e">Check the blast radius first.</text>
+      <line x1="24" y1="96" x2="324" y2="96" stroke="#30363d"/>
+      <text x="24" y="122" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="18"><tspan fill="#e6edf3">codeblast impact</tspan><tspan fill="#8b949e"> graph.db</tspan></text>
+      <text x="24" y="146" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="18" fill="#8b949e">"createOrder" --json</text>
+    </g>
+
+    <g id="query-change" transform="translate(426,10)">
+      <rect width="348" height="150" rx="12" fill="#161b22" stroke="#30363d"/>
+      <circle cx="24" cy="34" r="5.5" fill="#d29922"/>
+      <text x="40" y="41" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="20" font-weight="700" fill="#e6edf3">change</text>
+      <text x="24" y="78" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="18" fill="#8b949e">Structural diff between two refs</text>
+      <line x1="24" y1="96" x2="324" y2="96" stroke="#30363d"/>
+      <text x="24" y="122" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="18"><tspan fill="#e6edf3">codeblast change</tspan><tspan fill="#8b949e"> &lt;repo&gt;</tspan></text>
+      <text x="24" y="146" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="18" fill="#8b949e">main~5 main --json</text>
+    </g>
+
+    <g id="query-archmap" transform="translate(796,10)">
+      <rect width="348" height="150" rx="12" fill="#161b22" stroke="#30363d"/>
+      <circle cx="24" cy="34" r="5.5" fill="#8957e5"/>
+      <text x="40" y="41" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="20" font-weight="700" fill="#e6edf3">archmap</text>
+      <text x="24" y="78" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="18" fill="#8b949e">Module, file and symbol drill-down</text>
+      <line x1="24" y1="96" x2="324" y2="96" stroke="#30363d"/>
+      <text x="24" y="122" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="18"><tspan fill="#e6edf3">codeblast archmap</tspan><tspan fill="#8b949e"> graph.db</tspan></text>
+      <text x="24" y="146" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="18" fill="#8b949e">--out arch.html</text>
+    </g>
+  </g>
+</svg>

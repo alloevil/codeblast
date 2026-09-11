@@ -66,6 +66,10 @@ The LLM does exactly one job in the pipeline: giving modules human-readable name
 
 ## The three queries
 
+<p align="center">
+  <img src="assets/readme/three-queries.svg" width="100%" alt="The three codeblast queries — impact: check the blast radius first; change: structural diff between two refs; archmap: module, file and symbol drill-down"/>
+</p>
+
 ```bash
 # Build the graph: auto-detects TS monorepos / Python, hash-based incremental updates
 # (full build of tRPC, 950 files, in ~20s)
@@ -154,3 +158,9 @@ Agent conventions: [AGENTS.md](AGENTS.md).
 M0 graph engine → M1 Impact → M3 architecture map → M4 graph diff + PR bot → M5 precision extensions — **all milestones accepted** (each with a reproducible acceptance script). Single source of truth for design and acceptance criteria: [intent.md](intent.md).
 
 MIT © 2026
+
+---
+
+<p align="center">
+  <a href="https://github.com/oil-oil/beautify-github-readme"><img src="./assets/readme/made-with-beautify.svg" width="300" alt="README made with beautify-github-readme"></a>
+</p>

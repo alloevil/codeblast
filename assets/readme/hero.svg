@@ -1,49 +1,82 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 400" width="100%" role="img" aria-label="codeblast — deterministic code graph: know what breaks before you merge">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 420" width="100%" role="img" aria-labelledby="cbTitle cbDesc">
+  <title id="cbTitle">codeblast impact result for createFlatProxy in the tRPC repository</title>
+  <desc id="cbDesc">codeblast is a deterministic code graph CLI for TypeScript and Python. A real impact query for createFlatProxy at packages/server/src/unstable-core-do-not-import/createProxy.ts:88 reports 5 directly affected files, 302 transitive files and 228 test files, with the import edge in packages/server/src/unstable-core-do-not-import/router.ts at line 2 as edge evidence. Mutation-tested recall is 28 of 28.</desc>
+
   <defs>
-    <clipPath id="frame"><rect width="1200" height="400" rx="16"/></clipPath>
+    <clipPath id="cbFrame"><rect width="1200" height="420" rx="18"/></clipPath>
   </defs>
-  <g clip-path="url(#frame)">
-    <rect width="1200" height="400" fill="#0d1117"/>
 
-    <!-- 母题：从目标节点辐射的冲击波（右侧图区背景） -->
-    <g transform="translate(870,200)">
-      <circle r="52"  fill="none" stroke="#f85149" stroke-opacity="0.5" stroke-width="1.5"/>
-      <circle r="104" fill="none" stroke="#f85149" stroke-opacity="0.3" stroke-width="1.2"/>
-      <circle r="164" fill="none" stroke="#58a6ff" stroke-opacity="0.22" stroke-width="1"/>
-      <circle r="230" fill="none" stroke="#58a6ff" stroke-opacity="0.12" stroke-width="1"/>
-    </g>
+  <g clip-path="url(#cbFrame)">
+    <rect width="1200" height="420" fill="#0d1117"/>
 
-    <!-- 左：标题系统 -->
-    <g transform="translate(64,74)">
-      <text font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="20" fill="#8b949e" letter-spacing="3">DETERMINISTIC CODE GRAPH · TS / PY</text>
-      <text y="74" font-family="-apple-system,'Segoe UI',sans-serif" font-size="64" font-weight="700" fill="#e6edf3">code<tspan fill="#f85149">blast</tspan></text>
-      <text y="122" font-family="-apple-system,'Segoe UI',sans-serif" font-size="27" fill="#e6edf3">Know what breaks <tspan fill="#58a6ff">before</tspan> you merge.</text>
-      <text y="156" font-family="-apple-system,'Segoe UI',sans-serif" font-size="20" fill="#8b949e">Architecture · Change · Impact — 每条边带 file:line 证据</text>
-
-      <!-- 元数据行 -->
-      <g transform="translate(0,204)" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="18">
-        <rect x="-14" y="-26" width="470" height="40" rx="8" fill="#161b22" stroke="#30363d"/>
-        <text fill="#3fb950">recall 28/28 = 100%</text>
-        <text x="230" fill="#8b949e">mutation-tested</text>
-        <text x="404" fill="#8b949e">MIT</text>
+    <g id="title-block" transform="translate(60,0)">
+      <text y="92" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="20" letter-spacing="2.5" fill="#8b949e">DETERMINISTIC CODE GRAPH</text>
+      <text y="166" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="66" font-weight="700" fill="#e6edf3">code<tspan fill="#f85149">blast</tspan></text>
+      <text y="212" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="26" fill="#e6edf3">Know what <tspan fill="#f85149" font-weight="600">breaks</tspan> before you merge.</text>
+      <text y="250" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="18" fill="#8b949e">Architecture · Change · Impact</text>
+      <text y="278" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="18" fill="#8b949e">every edge carries file:line evidence</text>
+      <g font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="18">
+        <rect y="300" width="480" height="44" rx="10" fill="#161b22" stroke="#30363d"/>
+        <text x="18" y="329" fill="#8b949e">recall <tspan fill="#e6edf3" font-weight="700">28/28 = 100%</tspan></text>
+        <text x="245" y="329" fill="#8b949e">mutation-tested</text>
+        <text x="425" y="329" fill="#8b949e">MIT</text>
       </g>
     </g>
 
-    <!-- 右：项目原生材料 = 真实 impact 查询（terminal 卡片） -->
-    <g transform="translate(640,52)">
-      <rect width="500" height="296" rx="12" fill="#161b22" stroke="#30363d"/>
-      <circle cx="24" cy="24" r="5.5" fill="#f85149"/><circle cx="44" cy="24" r="5.5" fill="#d29922"/><circle cx="64" cy="24" r="5.5" fill="#3fb950"/>
-      <text x="88" y="30" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="16" fill="#8b949e">impact — blast radius query</text>
+    <g id="impact-result" transform="translate(584,40)">
+      <rect width="556" height="300" rx="12" fill="#161b22" stroke="#30363d"/>
 
-      <g font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="18.5">
-        <text x="24" y="72"  fill="#8b949e">$ <tspan fill="#e6edf3">codeblast impact </tspan><tspan fill="#d29922">"createOrder"</tspan></text>
-        <text x="24" y="106" fill="#e6edf3">impact: <tspan fill="#f85149" font-weight="700">296 nodes</tspan> <tspan fill="#8b949e">(direct=44 tests=40)</tspan></text>
-        <text x="24" y="140" fill="#8b949e">├─ 调用链可达（高置信）      <tspan fill="#58a6ff">34</tspan></text>
-        <text x="24" y="172" fill="#8b949e">└─ import/re-export 可达   <tspan fill="#58a6ff">262</tspan></text>
-        <text x="24" y="212" fill="#e6edf3">[direct] <tspan fill="#58a6ff">nextAppDirCaller</tspan></text>
-        <text x="52" y="242" fill="#8b949e">via <tspan fill="#3fb950">nextAppDirCaller.ts:55</tspan> ← 证据行</text>
-        <text x="24" y="276" fill="#e6edf3">[tests]  <tspan fill="#58a6ff">websockets.test.ts</tspan> <tspan fill="#8b949e">+39</tspan></text>
+      <circle cx="28" cy="32" r="5.5" fill="#f85149"/>
+      <circle cx="48" cy="32" r="5.5" fill="#d29922"/>
+      <circle cx="68" cy="32" r="5.5" fill="#8957e5"/>
+      <text x="92" y="39" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="16" fill="#8b949e">impact · blast radius by affected file</text>
+
+      <g fill="none" stroke-width="1.6">
+        <circle cx="508" cy="28" r="25" stroke="#8957e5" stroke-opacity="0.45"/>
+        <circle cx="508" cy="28" r="17" stroke="#d29922" stroke-opacity="0.6"/>
+        <circle cx="508" cy="28" r="9" stroke="#f85149" stroke-opacity="0.85"/>
       </g>
+      <circle cx="508" cy="28" r="3.5" fill="#f85149"/>
+
+      <line x1="24" y1="60" x2="532" y2="60" stroke="#30363d"/>
+      <text x="24" y="100" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="18"><tspan fill="#8b949e">$ </tspan><tspan fill="#e6edf3">codeblast impact graph.db </tspan><tspan fill="#e6edf3" font-weight="700">"createFlatProxy"</tspan></text>
+
+      <circle cx="34" cy="120" r="13" fill="none" stroke="#f85149" stroke-opacity="0.35" stroke-width="1.5"/>
+      <circle cx="34" cy="120" r="6.5" fill="#f85149"/>
+      <text x="56" y="126" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="19" font-weight="700" fill="#e6edf3">createFlatProxy</text>
+      <text x="56" y="152" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="18" fill="#8b949e">unstable-core-do-not-import/createProxy.ts:88</text>
+
+      <g font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="18">
+        <rect x="24" y="168" width="135" height="42" rx="9" fill="#0d1117" stroke="#30363d"/>
+        <circle cx="40" cy="189" r="5" fill="#f85149"/>
+        <text x="58" y="195" fill="#f85149" font-weight="700">5</text>
+        <text x="77" y="195" fill="#8b949e">direct</text>
+
+        <rect x="172" y="168" width="201" height="42" rx="9" fill="#0d1117" stroke="#30363d"/>
+        <circle cx="188" cy="189" r="5" fill="#8957e5"/>
+        <text x="206" y="195" fill="#8957e5" font-weight="700">302</text>
+        <text x="247" y="195" fill="#8b949e">transitive</text>
+
+        <rect x="386" y="168" width="146" height="42" rx="9" fill="#0d1117" stroke="#30363d"/>
+        <circle cx="402" cy="189" r="5" fill="#d29922"/>
+        <text x="420" y="195" fill="#d29922" font-weight="700">228</text>
+        <text x="461" y="195" fill="#8b949e">tests</text>
+      </g>
+
+      <line x1="24" y1="226" x2="532" y2="226" stroke="#30363d"/>
+      <text x="24" y="250" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="16" fill="#8b949e">direct callers · files to review</text>
+      <g font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="18" fill="#e6edf3">
+        <circle cx="30" cy="266" r="4" fill="#f85149"/>
+        <text x="46" y="272">packages/react-query/src/server/ssgProxy.ts</text>
+        <circle cx="30" cy="288" r="4" fill="#f85149"/>
+        <text x="46" y="294">packages/client/src/createTRPCClient.ts</text>
+      </g>
+    </g>
+
+    <g id="edge-evidence" transform="translate(60,0)">
+      <line x1="0" y1="368" x2="1080" y2="368" stroke="#30363d"/>
+      <text y="398" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="16" letter-spacing="2" fill="#8b949e">EDGE EVIDENCE</text>
+      <text x="180" y="398" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="18"><tspan fill="#e6edf3">packages/server/src/unstable-core-do-not-import/router.ts:2</tspan><tspan fill="#8b949e"> → </tspan><tspan fill="#e6edf3">createProxy.ts</tspan></text>
     </g>
   </g>
 </svg>
