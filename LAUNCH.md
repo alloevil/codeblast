@@ -27,7 +27,7 @@ answers three questions before you merge:
 The part I care about most is the acceptance method. The promise "no false negatives
 within the statically analyzable range" is verified by mutation testing: inject a
 fault into a function, run the full test suite, and compare the tests that actually
-failed against what the tool predicted. Current benchmark (tRPC, 950 files):
+failed against what the tool predicted. Current benchmark (tRPC, 957 files):
 recall 15/15 = 100%, call-channel precision 0.744.
 
 That gate has already paid for itself twice. A barrel-file pruning optimization

@@ -13,7 +13,7 @@ with `npx skills add alloevil/codeblast`.
 
 ## Docs
 - [Live architecture map demos](https://alloevil.github.io/codeblast/): index of the five generated showcase maps
-- [tRPC architecture map](https://alloevil.github.io/codeblast/trpc-arch.html): 950 files, 8 packages, client to server one-way dependency
+- [tRPC architecture map](https://alloevil.github.io/codeblast/trpc-arch.html): 957 files, 8 packages, client to server one-way dependency
 - [tRPC impact overlay](https://alloevil.github.io/codeblast/trpc-impact-demo.html): blast radius of `createFlatProxy` painted on the map
 - [tRPC change map](https://alloevil.github.io/codeblast/trpc-change-demo.html): structural diff of one real commit
 - [Tabby architecture map](https://alloevil.github.io/codeblast/tabby-arch.html): Angular/Electron "dirty repo" benchmark with dynamic-injection blind spots labelled
