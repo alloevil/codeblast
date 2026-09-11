@@ -33,6 +33,7 @@
 ```bash
 npx codeblast demo            # 给当前仓库建图、跑一次 impact 查询、导出架构图
 npm i -g codeblast            # 或全局安装；需要 Node ≥ 22.13（内置 sqlite）或 Bun
+                              # npm 上的版本是 0.3.0；本仓库是 0.3.1（尚未发布）
 
 # 作为 agent skill 安装（Claude Code、Codex、Cursor 等）
 npx skills add alloevil/codeblast
@@ -45,13 +46,13 @@ LLM 画图:    代码 → 模型阅读理解 → 手写图 → 渲染        图
 codeblast:   代码 → tsc/AST 确定性解析 → 图谱 → 投影    图 = 可验证的事实
 ```
 
-**每个节点、每条边、每句结论都带 `file:line` 证据**，可直接打开核对。
+**每个节点和每条静态分析边都带 `file:line` 证据**，可直接打开核对（`co_change` 边在该字段存的是共提交次数而非源码行；文件级节点行号为 1）。
 LLM 在管线里只做一件事：给模块起人话名字——节点归属和边永远来自静态分析。
 
 ## 三个查询
 
 ```bash
-# 建图：TS monorepo / Python 自动识别，hash 增量更新（tRPC 950 文件全量 ~20s）
+# 建图：TS monorepo / Python 自动识别，hash 增量更新（tRPC 957 文件：6248 节点 / 17072 边，样例运行见 SKILL.md）
 codeblast index <repo> --db graph.db
 
 # ① Impact —— 改动前查影响半径
@@ -74,15 +75,15 @@ codeblast cochange <repo> graph.db
 
 复制 [`.github/workflows-template/codeblast.yml`](.github/workflows-template/codeblast.yml) 到目标仓库：
 每个 PR 自动评论结构变化 + 影响半径 + 无测试覆盖的新增符号；**无结构变化的 PR 零评论**。
-50 个真实提交回放：42 个正确静默。评论有效率是诚实的弱项——四轮独立盲评为 25% / 75% / 57% / 20%，
+50 个真实提交回放：42 个正确静默。评论有效率是诚实的弱项——四轮评审（1–3 轮为独立盲评，第 4 轮由现模型担任评审人）为 25% / 75% / 57% / 20%，
 而作者 agent 自评同一批 8 条评论为 7/8 = 87.5%；两个数字与每轮之后的修复都记在 [intent.md](intent.md)。
 
 ## 精度承诺（有边界，有证据）
 
 - **TypeScript 函数级，静态可分析范围内零漏报。** 验收方法：变异测试对照
-  （真实仓库注入变异 → 全量测试得真实影响集 → 对比预测）。当前基准（tRPC，950 文件）：
+  （真实仓库注入变异 → 全量测试得真实影响集 → 对比预测）。当前基准（tRPC，957 文件）：
   **28/28 变异召回率 100%**，平均精确率 0.36——宁误报不漏报是刻意交换：
-  对照实验中砍掉保守边可将精确率提到 0.70，但召回率跌至 14%。数据在 [`eval/`](eval/)。
+  对照实验中把结果限制在调用链通道（对合并结果做 channel 过滤，见 `eval/mutation_check.py` 的 `predicted_call`）可将精确率提到 0.70，但召回率跌至 14%。数据在 [`eval/`](eval/)。
 - **盲区显式标注。** 盲区 = 静态无法解析到仓内目标的调用/导入（含动态调用、未解析调用、外部依赖解析失败、子进程边界、测试框架全局），并非只有动态调用；
   一律记入 blind_spots 并提示"影响可能被低估"，绝不静默丢弃。
 - **Python 为文件级。** 动态类型使函数级零漏报原理性不成立，不假装做到。
@@ -98,11 +99,11 @@ codeblast cochange <repo> graph.db
 ## 什么时候不要用它
 
 - **你要 Python 的函数级保证。** Python 是文件级 + 类型化调用增强；鸭子类型使函数级零漏报原理性不成立，我们不假装做到。
-- **你要一份短而准的影响清单。** 全量平均精确率 0.33–0.36（call 通道 ≈0.70–0.92）。引擎刻意过近似：`call` 通道优先读，全量清单当作"要跑的测试"。
+- **你要一份短而准的影响清单。** 全量平均精确率 0.33–0.36；单看 call 通道为 0.702（tRPC 对照实验）到 0.918（graphql-tools）——这是派生区间（两个基准均值的 min/max，数据在 [`eval/`](eval/)），不是单次实测。引擎刻意过近似：`call` 通道优先读，全量清单当作"要跑的测试"。
 - **你的依赖主要走静态分析看不见的路径** —— 动态 `require`、`eval`、子进程边界、未安装的 `node_modules`、测试框架全局。这些一律记入 `blind_spots` 不静默丢弃，但这样的仓库只会得到一张稀疏的图。
 - **你要的是演示用图或协作画布。** `archmap` 输出的是用于导航的事实；要好看的图请把它的 JSON 喂给渲染工具。
 - **你要跨服务 / 跨仓库边，或者 Java。** 图模型预留了节点类型但 v1 不填这些边，Java 明确未实现（见 [intent.md](intent.md)）。
-- **你想让 PR bot 代替评审人。** 它是结构变化信号，独立盲评的有效率在 20%–75% 之间波动。
+- **你想让 PR bot 代替评审人。** 它是结构变化信号，四轮评审（1–3 轮独立盲评，第 4 轮现模型自评）的有效率在 20%–75% 之间波动。
 
 ## 给 AI Agent 用
 
@@ -118,17 +119,17 @@ Agent 规范另见 [AGENTS.md](AGENTS.md)。
 
 **零漏报承诺的边界到底是什么？** 在"仓内静态可分析的 TypeScript"范围内，预测的受影响测试文件集是真实失败测试集的超集。验收方式是两个独立仓库上的变异测试——trpc/trpc 28/28 被杀死变异、ardatan/graphql-tools 10/10——并由每周的 [`acceptance`](.github/workflows/acceptance.yml) 工作流把守：召回率低于 100% 即失败并自动开 issue。任何静态无法解析的东西都记入盲区，且项目规则禁止使用无限定的"零漏报"表述。
 
-**精确率这么低是 bug 吗？** 不是，是被测量过的取舍。tRPC 30 变异集上平均精确率 0.358，graphql-tools 10 变异集上 0.331，即多数被预测的测试并不会失败。对照实验中只保留调用链边可把 call 通道精确率提到 0.702，但召回率跌到 14 个被杀死变异中的 2 个。后来一次"剪纯 re-export barrel + 收窄接口扇出"的精确率优化被自己的数据否决（必然产生漏报），因此精确率不再作为优化目标。
+**精确率这么低是 bug 吗？** 不是，是被测量过的取舍。tRPC 30 变异集上平均精确率 0.358，graphql-tools 10 变异集上 0.331，即多数被预测的测试并不会失败。对照实验中把结果限制在 call 通道（对合并结果做过滤，见 `eval/mutation_check.py` 的 `predicted_call`）可把 call 通道精确率提到 0.702，但召回率跌到 14 个被杀死变异中的 2 个。后来一次"剪纯 re-export barrel + 收窄接口扇出"的精确率优化被自己的数据否决（必然产生漏报），因此精确率不再作为优化目标。
 
 **支持 Python 吗？** 支持，文件级，并带类型化调用增强（具名导入调用、构造赋值/注解推断出的方法调用），足以支撑架构图与文件级 Change Map。函数级零漏报承诺仍为 TypeScript 独有。Python 实例见 [sgp 架构图](https://alloevil.github.io/codeblast/sgp-arch.html)，其中检出了 `sgp_utils ⇄ solver_transfer` 循环依赖。
 
 **怎么让 AI agent 用它？** 用 `npx skills add alloevil/codeblast` 装成 skill，改前跑 `codeblast impact <db> "<symbol>" --json`，改后跑 `codeblast change <repo> HEAD~1 HEAD --json`。[SKILL.md](SKILL.md) 写明了关键解读纪律：`blind_spot_count > 0` 时禁止声称清单完整、禁止为了缩短清单砍掉 `file` 通道、禁止对 Python 声称函数级精度、`truncated: true` 要建议跑全量测试、`co_change_hints` 不等于影响。
 
-**可核对的数字在哪里？** 带指标、方法、复现命令和证据路径的机器可读清单发布在 [claims.json](https://alloevil.github.io/codeblast/claims.json)；原始变异与 PR 回放数据在 [`eval/`](eval/)；包含每次降级与被否决优化的验收台账是 [intent.md](intent.md)。
+**可核对的数字在哪里？** 带指标、方法、复现命令和证据路径的机器可读清单发布在 [claims.json](https://alloevil.github.io/codeblast/claims.json)；原始变异与 PR 回放数据作为**运行存档**放在 [`eval/`](eval/)（harness 写的是 `/tmp`，这些文件是人工拷贝、不带 commit 或版本标注，候选用 `ORDER BY RANDOM()` 抽取——当存档读，别当作一条命令就能重跑出来的产物）；包含每次降级与被否决优化的验收台账是 [intent.md](intent.md)。
 
 ## 状态与路线
 
-M0 图谱引擎 → M1 Impact → M3 架构图 → M4 图 diff + PR bot → M5 精度扩展，**全部验收通过**（每项含可复现验收脚本）。方案与验收标准的单一事实源：[intent.md](intent.md)。
+M0 图谱引擎 → M1 Impact → M3 架构图 → M4 图 diff + PR bot → M5 精度扩展，**全部交付**；其中两项验收是降级而非通过（M2 的验证方式、M3 原定的"陌生工程师 10 分钟 5 问"从未执行——见 intent.md 的 ⚠️），SemArc 对齐检查已作废。方案与验收标准的单一事实源：[intent.md](intent.md)。
 
 MIT © 2026
 
