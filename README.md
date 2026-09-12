@@ -55,6 +55,31 @@ npm i -g codeblast            # or install globally; needs Node ≥ 22.13 (built
 npx skills add alloevil/codeblast
 ```
 
+### As a GitHub Action (one line)
+
+```yaml
+# .github/workflows/codeblast.yml
+name: codeblast
+on: pull_request
+permissions:
+  contents: read
+  pull-requests: write
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }      # the analyzer compares base and head commits
+      - uses: alloevil/codeblast@v0.3.1
+```
+
+The action builds the analyzer from the ref you pinned (not from npm, which can lag),
+posts one sticky comment per PR and updates it in place, and stays silent when the diff
+has no structural change. Inputs: `base`, `head`, `repo-url`, `comment` (set to `false`
+to only produce the file); outputs: `has_comment`, `comment_path`. If you prefer to own
+the commenting step, copy [`.github/workflows-template/codeblast.yml`](.github/workflows-template/codeblast.yml)
+instead — it runs the same command with `npx`.
+
 ## Why not yet another LLM diagram tool
 
 ```
