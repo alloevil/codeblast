@@ -2,7 +2,7 @@
   "project": "codeblast",
   "url": "https://alloevil.github.io/codeblast/",
   "repository": "https://github.com/alloevil/codeblast",
-  "updated": "2026-09-08",
+  "updated": "2026-09-13",
   "claims": [
     {
       "id": "trpc-mutation-impact-recall",
@@ -12,7 +12,15 @@
       "method": "30 mutants injected one at a time into test-covered TypeScript functions (throw on the function's first line); the full vitest suite is run per mutant to obtain the ground-truth failing-test files; the file is then restored. 2 of the 30 mutants were not killed by the suite (dead code path or type-only) and are excluded from the ratio.",
       "repro": "bash eval/setup_benchmarks.sh && python3 eval/mutation_check.py /tmp/trpc /tmp/trpc-full.db 30",
       "evidence": "https://github.com/alloevil/codeblast/blob/main/eval/mutation-2026-08-28-trpc-n30.json",
-      "verified": "2026-09-08"
+      "verified": "2026-09-08",
+      "check": {
+        "cmd": "python3 -c \"import json;P='eval/mutation-2026-08-28-trpc-n30.json';D=json.load(open(P));K=[e for e in D if 'precision' in e];print('%d/%d'%(sum(1 for e in K if e.get('recall_hit')),len(K)))\"",
+        "expect": {
+          "equals": "28/28"
+        },
+        "timeout": 60,
+        "note": "recounted from the committed eval run; the `repro` above re-runs the whole mutation benchmark"
+      }
     },
     {
       "id": "trpc-mutation-impact-precision",
@@ -22,7 +30,15 @@
       "method": "Same mutation run as trpc-mutation-impact-recall; the per-mutant precision field of the 28 killed mutants is averaged. Over-approximation is deliberate: the engine prefers false positives to false negatives.",
       "repro": "python3 -c \"import json,statistics;d=json.load(open('eval/mutation-2026-08-28-trpc-n30.json'));print(round(statistics.mean([e['precision'] for e in d if 'precision' in e]),3))\"",
       "evidence": "https://github.com/alloevil/codeblast/blob/main/eval/mutation-2026-08-28-trpc-n30.json",
-      "verified": "2026-09-08"
+      "verified": "2026-09-08",
+      "check": {
+        "cmd": "python3 -c \"import json;P='eval/mutation-2026-08-28-trpc-n30.json';D=json.load(open(P));K=[e for e in D if 'precision' in e];print('%.3f'%(sum(e['precision'] for e in K)/len(K)))\"",
+        "expect": {
+          "equals": "0.358"
+        },
+        "timeout": 60,
+        "note": "mean over the killed mutants in the committed run"
+      }
     },
     {
       "id": "graphql-tools-mutation-impact-recall",
@@ -32,7 +48,15 @@
       "method": "Same harness with --runner jest against ardatan/graphql-tools. Suspected misses are re-run on restored source; a test that still fails without the mutation is judged flaky and removed from the ground truth. Mean precision over the 10 mutants is 0.331.",
       "repro": "bash eval/setup_benchmarks.sh && python3 eval/mutation_check.py /tmp/graphql-tools /tmp/graphql-tools.db 10 --runner jest",
       "evidence": "https://github.com/alloevil/codeblast/blob/main/eval/mutation-2026-09-07-graphql-tools-n10.json",
-      "verified": "2026-09-08"
+      "verified": "2026-09-08",
+      "check": {
+        "cmd": "python3 -c \"import json;P='eval/mutation-2026-09-07-graphql-tools-n10.json';D=json.load(open(P));K=[e for e in D if 'precision' in e];print('%d/%d'%(sum(1 for e in K if e.get('recall_hit')),len(K)))\"",
+        "expect": {
+          "equals": "10/10"
+        },
+        "timeout": 60,
+        "note": "recounted from the committed eval run"
+      }
     },
     {
       "id": "call-channel-precision",
@@ -42,7 +66,15 @@
       "method": "15-mutant run recording both channels per mutant: precision for the combined call+import prediction and precision_call for the call-graph-reachable subset. recall_hit is true for all 15 mutants.",
       "repro": "python3 -c \"import json,statistics;d=json.load(open('eval/mutation-2026-08-31-trpc-n15.json'));print(round(statistics.mean([e['precision_call'] for e in d]),3), sum(e['recall_hit'] for e in d), len(d))\"",
       "evidence": "https://github.com/alloevil/codeblast/blob/main/eval/mutation-2026-08-31-trpc-n15.json",
-      "verified": "2026-09-08"
+      "verified": "2026-09-08",
+      "check": {
+        "cmd": "python3 -c \"import json;P='eval/mutation-2026-08-31-trpc-n15.json';D=json.load(open(P));K=[e for e in D if 'precision' in e];print('%.3f'%(sum(e['precision_call'] for e in K)/len(K)))\"",
+        "expect": {
+          "equals": "0.744"
+        },
+        "timeout": 60,
+        "note": "mean call-channel precision in the committed n=15 run"
+      }
     },
     {
       "id": "call-only-channel-recall-collapse",
@@ -52,7 +84,15 @@
       "method": "Channel ablation on tRPC: for each mutant both the combined prediction and the call-only prediction are scored against the same ground truth. 1 of 15 mutants was not killed by the suite and is excluded, leaving 14; call_recall_hit is true for 2 of them and mean precision_call is 0.702.",
       "repro": "python3 -c \"import json,statistics;d=[e for e in json.load(open('eval/mutation-2026-08-28-trpc-n15-channel.json')) if 'precision' in e];print(sum(e['call_recall_hit'] for e in d), len(d), round(statistics.mean([e['precision_call'] for e in d]),3))\"",
       "evidence": "https://github.com/alloevil/codeblast/blob/main/eval/mutation-2026-08-28-trpc-n15-channel.json",
-      "verified": "2026-09-08"
+      "verified": "2026-09-08",
+      "check": {
+        "cmd": "python3 -c \"import json;D=json.load(open('eval/mutation-2026-08-28-trpc-n15-channel.json'));K=[e for e in D if 'precision' in e];h=sum(1 for e in K if e.get('call_recall_hit'));print('%d/%d (%d%%)'%(h,len(K),round(100*h/len(K))))\"",
+        "expect": {
+          "equals": "2/14 (14%)"
+        },
+        "timeout": 60,
+        "note": "recounted from the committed channel-ablation run (eval/mutation-2026-08-28-trpc-n15-channel.json)"
+      }
     },
     {
       "id": "pr-bot-silence-rate",
@@ -62,7 +102,15 @@
       "method": "eval/pr_replay.py walks 50 non-merge commits of trpc/trpc origin/main and runs pr-comment on each commit against its parent, recording ok, silent, seconds and comment_lines per commit.",
       "repro": "bash eval/setup_benchmarks.sh && python3 eval/pr_replay.py 0 /tmp/pr-replay",
       "evidence": "https://github.com/alloevil/codeblast/blob/main/eval/pr-replay-2026-08-28-trpc-n50.json",
-      "verified": "2026-09-08"
+      "verified": "2026-09-08",
+      "check": {
+        "cmd": "python3 -c \"import json;D=json.load(open('eval/pr-replay-2026-08-28-trpc-n50.json'));s=sum(1 for e in D if e.get('silent'));o=sum(1 for e in D if e.get('ok'));print('%d/%d silent, %d comments, %d/%d runs ok'%(s,len(D),len(D)-s,o,len(D)))\"",
+        "expect": {
+          "equals": "42/50 silent, 8 comments, 50/50 runs ok"
+        },
+        "timeout": 60,
+        "note": "recounted from the committed replay of 50 real commits"
+      }
     },
     {
       "id": "pr-comment-usefulness-independent-review",
@@ -72,7 +120,10 @@
       "method": "Four rounds recorded in intent.md: 2/8 on the first replay window, 9/12 on a second 50-commit window, 4/7 on a third window (skip=100), 1/5 on a re-run of that window after fixes. The 87.5% figure is the author agent rating its own 8 comments; intent.md records the gap as evidence of reviewer bias. Reviewed comment bodies are committed under eval/pr-replay-2026-08-28-window2 (12 files) and eval/pr-replay-2026-08-28-window3 (7 files).",
       "repro": "python3 eval/pr_replay.py 100 /tmp/pr-replay, then re-rate the comments against eval/pr-replay-2026-08-28-window3",
       "evidence": "https://github.com/alloevil/codeblast/blob/main/intent.md",
-      "verified": "2026-09-08"
+      "verified": "2026-09-08",
+      "check": {
+        "manual": "the 25% / 75% / 57% / 20% figures are human ratings of comments recorded in intent.md; no command produces a review score"
+      }
     },
     {
       "id": "graph-scale-sentinels",
@@ -82,7 +133,10 @@
       "method": "The acceptance workflow indexes each benchmark repo, asserts the row counts, then runs mutation testing behind a 100% recall gate; a scheduled failure opens an issue labelled acceptance-regression.",
       "repro": "gh workflow run acceptance.yml -R alloevil/codeblast",
       "evidence": "https://github.com/alloevil/codeblast/blob/main/.github/workflows/acceptance.yml",
-      "verified": "2026-09-08"
+      "verified": "2026-09-08",
+      "check": {
+        "manual": "checks the graph produced from a clone of trpc/trpc and ardatan/graphql-tools; the weekly acceptance workflow runs it, not this file"
+      }
     },
     {
       "id": "trpc-graph-scale-measured",
@@ -92,7 +146,10 @@
       "method": "Single `codeblast index` run of published codeblast 0.3.0 against a shallow clone of trpc/trpc at commit 66d0544. Deterministic given the same commit and version; counts drift with upstream commits, so the commit is part of the claim. Wall-clock seconds are machine-dependent and deliberately not claimed.",
       "repro": "git clone --depth=1 https://github.com/trpc/trpc.git && git -C trpc checkout 66d0544 && npx codeblast@0.3.0 index ./trpc --db /tmp/graph.db",
       "evidence": "https://github.com/alloevil/codeblast/blob/main/SKILL.md#1-build-the-graph-required-first-incremental-afterwards",
-      "verified": "2026-09-08"
+      "verified": "2026-09-08",
+      "check": {
+        "manual": "needs a clone of trpc/trpc plus a built codeblast; the measured numbers are recorded in SKILL.md and docs/claims.json"
+      }
     }
   ]
 }
