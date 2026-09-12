@@ -1,0 +1,46 @@
+name: action selftest
+
+# Proves the published action works: it runs `uses: alloevil/codeblast@v0.3.1` (the same
+# line a consumer writes) against a fixed, real commit pair that contains source changes,
+# so the analyze → markdown path is exercised end to end in CI. Manual trigger, and the
+# comment step is off: this is a test of the plumbing, not a report on a pull request.
+on:
+  workflow_dispatch:
+    inputs:
+      base:
+        description: Base commit to analyze
+        required: false
+        default: "2d3d248"
+      head:
+        description: Head commit to analyze
+        required: false
+        default: "0a4caf4"
+
+permissions:
+  contents: read
+
+jobs:
+  selftest:
+    name: alloevil/codeblast@v0.3.1
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: codeblast
+        uses: alloevil/codeblast@v0.3.1
+        with:
+          base: ${{ inputs.base }}
+          head: ${{ inputs.head }}
+          comment: "false"
+
+      - name: The action must have produced a comment file
+        run: |
+          set -euo pipefail
+          echo "has_comment=${{ steps.codeblast.outputs.has_comment }}"
+          echo "comment_path=${{ steps.codeblast.outputs.comment_path }}"
+          test "${{ steps.codeblast.outputs.has_comment }}" = "true"
+          test -s "${{ steps.codeblast.outputs.comment_path }}"
+          grep -q "结构" "${{ steps.codeblast.outputs.comment_path }}"
+          echo "action selftest passed"
