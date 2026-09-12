@@ -1,0 +1,87 @@
+name: codeblast
+description: >-
+  Structural change + blast radius for a pull request, from a deterministic code
+  graph (no LLM in the analysis path). Posts one comment per PR and updates it in
+  place; PRs with no structural change stay silent.
+author: alloevil
+branding:
+  icon: git-pull-request
+  color: purple
+
+inputs:
+  base:
+    description: Base commit (defaults to the pull request's base sha)
+    required: false
+    default: ${{ github.event.pull_request.base.sha }}
+  head:
+    description: Head commit (defaults to the pull request's head sha)
+    required: false
+    default: ${{ github.event.pull_request.head.sha }}
+  repo-url:
+    description: Repository URL used to build source links in the comment
+    required: false
+    default: ${{ github.server_url }}/${{ github.repository }}
+  comment:
+    description: Post or update the sticky PR comment (set to "false" to only produce the file)
+    required: false
+    default: "true"
+
+outputs:
+  has_comment:
+    description: '"true" when the analysis produced a comment (a structural change was found)'
+    value: ${{ steps.analyze.outputs.has_comment }}
+  comment_path:
+    description: Path to the generated Markdown comment (empty when nothing changed)
+    value: ${{ steps.analyze.outputs.comment_path }}
+
+runs:
+  using: composite
+  steps:
+    # The tool is built from the action's own ref (`${{ github.action_path }}`), not from
+    # npm: the published package can lag this repository, and an action that silently runs
+    # an older analyzer than the version you pinned would be its own kind of wrong number.
+    - uses: actions/setup-node@v4
+      with:
+        node-version: "22"
+    - uses: oven-sh/setup-bun@v2
+    - name: Build codeblast from the action ref
+      shell: bash
+      run: |
+        set -euo pipefail
+        cd "$GITHUB_ACTION_PATH"
+        bun install --frozen-lockfile
+        bun run build
+
+    - name: Analyze the pull request
+      id: analyze
+      shell: bash
+      env:
+        BASE_SHA: ${{ inputs.base }}
+        HEAD_SHA: ${{ inputs.head }}
+        REPO_URL: ${{ inputs.repo-url }}
+      run: |
+        set -uo pipefail
+        out="$RUNNER_TEMP/codeblast-comment.md"
+        node "$GITHUB_ACTION_PATH/dist/bin.js" pr-comment "$GITHUB_WORKSPACE" "$BASE_SHA" "$HEAD_SHA" --repo-url "$REPO_URL" > "$out"
+        status=$?
+        if [ "$status" -ne 0 ]; then
+          echo "::error::codeblast pr-comment exited $status"
+          exit "$status"
+        fi
+        if [ -s "$out" ]; then
+          echo "has_comment=true" >> "$GITHUB_OUTPUT"
+          echo "comment_path=$out" >> "$GITHUB_OUTPUT"
+          echo "--- comment ($(wc -l < "$out") lines) ---"
+          cat "$out"
+        else
+          echo "has_comment=false" >> "$GITHUB_OUTPUT"
+          echo "comment_path=" >> "$GITHUB_OUTPUT"
+          echo "no structural change — staying quiet"
+        fi
+
+    - name: Comment on the pull request
+      if: ${{ inputs.comment == 'true' && steps.analyze.outputs.has_comment == 'true' }}
+      uses: marocchino/sticky-pull-request-comment@v2
+      with:
+        header: codeblast
+        path: ${{ steps.analyze.outputs.comment_path }}
