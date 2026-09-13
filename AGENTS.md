@@ -53,3 +53,9 @@ eval/               验收 harness（变异测试、PR 回放）——改核心�
 - 双运行时：源码用 `bun src/bin.ts <cmd>` 直跑；发布产物 `dist/bin.js` 由 `bun run build` 打包、node ≥22.13 运行（node:sqlite）。SQLite/子进程只经 `src/db.ts` / `src/proc.ts`，禁止直接 import bun:sqlite 或调 Bun.*。
 - bun 在 /tmp 下运行脚本会解析错 node_modules——测试脚本放项目内跑。
 - 验收基准仓在 /tmp/trpc（deps 已装）与 /tmp/tabby（脏仓）；重装 deps 后盲区数会变。
+
+## 数字与宣称
+
+正文（README、docs、发布说明）里出现的每个数字,要么在 `claims.json` 里有一条机检 claim(命令从已提交的数据独立重算),要么有一条 `manual` claim 写明缺哪个产物、为什么复算不了。推之前跑 `verify-claims --root . run`;只改数字不改 claim,CI 会在几分钟后替你发现(`claims.yml`)。
+
+不确定还有哪些数字没人认领,跑 `verify-claims --root . coverage`:它列出正文里没有 claim 的数字——是待办清单,不是判定。
