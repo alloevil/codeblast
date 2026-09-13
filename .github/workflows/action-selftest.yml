@@ -24,12 +24,12 @@ jobs:
     name: alloevil/codeblast@v0.3.1
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
 
       - id: codeblast
-        uses: alloevil/codeblast@v0.3.1
+        uses: alloevil/codeblast@dfc5ecc0f860efe88713b948fe97bdd98d04e6b5 # v0.3.1
         with:
           base: ${{ inputs.base }}
           head: ${{ inputs.head }}
