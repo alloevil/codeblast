@@ -167,6 +167,23 @@
         },
         "timeout": 120
       }
+    },
+    {
+      "id": "animated-pages-respect-reduced-motion",
+      "claim": "Every page in this repository that animates also handles `prefers-reduced-motion` — motion here is decoration, so the page must stay readable and complete when it is off.",
+      "value": "no animated page without a reduced-motion branch",
+      "metric": "pages containing `animation:`/`@keyframes` vs pages containing `prefers-reduced-motion`",
+      "method": "the check walks every committed .html page, and where it finds an animation it requires a reduced-motion branch. It does not judge what the fallback does — only that one exists, because a missing branch is invisible in review and obvious to the person who gets motion sickness.",
+      "repro": "grep -l 'prefers-reduced-motion' *.html docs/*.html",
+      "as_of": "2026-09-15",
+      "evidence": "codeblast/docs/tabby-arch.html",
+      "check": {
+        "cmd": "python3 - <<'PY'\nimport pathlib, re\n\npages = [p for p in list(pathlib.Path('.').glob('*.html')) + list(pathlib.Path('.').glob('docs/*.html'))\n         if p.name != 'template.html']\nanimated, missing = 0, []\nfor p in pages:\n    t = p.read_text(encoding='utf-8', errors='replace')\n    if re.search(r'animation\\s*:|@keyframes', t):\n        animated += 1\n        if 'prefers-reduced-motion' not in t:\n            missing.append(p.name)\nprint('pages', len(pages), 'animated', animated, 'missing', missing)\nassert not missing\nPY",
+        "expect": {
+          "regex": "missing \\[\\]$"
+        },
+        "timeout": 180
+      }
     }
   ]
 }
