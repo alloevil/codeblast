@@ -37,6 +37,8 @@ usage: codeblast <command> [args]
   change    <repo> <ref-a> <ref-b> [--json]     structural diff between two refs
   archmap   <graph.db> --out arch.html          interactive architecture map
             [--impact <sym>] [--diff <base.db>]   ...with impact / change overlay
+            [--repo-url <url>]                    names the page and its JSON-LD (already used above)
+            [--site-url <base>] [--og-image <u>]  canonical/og for the published page (optional)
   mermaid   <graph.db>                          module map as mermaid
   cochange  <repo> <graph.db>                   mine git history coupling
   pr-comment <repo> <base-sha> <head-sha>       PR review comment (silent if no change)
