@@ -113,7 +113,8 @@ codeblast change <repo> main~5 main --json
 
 # ③ Architecture Map — interactive HTML: module → file → symbol drill-down,
 #    symbols link to source lines
-codeblast archmap graph.db --out arch.html --repo-url <github-url>
+codeblast archmap graph.db --out arch.html --repo-url <github-url> \
+  --site-url https://example.github.io/repo --og-image <share-image-url>
 
 # Optional: mine git co-change coupling (protocol pairs, config + consumers —
 # edges static analysis can't see)

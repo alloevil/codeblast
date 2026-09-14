@@ -150,6 +150,23 @@
       "check": {
         "manual": "needs a clone of trpc/trpc plus a built codeblast; the measured numbers are recorded in SKILL.md and docs/claims.json"
       }
+    },
+    {
+      "id": "docs-pages-have-head-metadata",
+      "claim": "Every page under docs/ carries a description, a canonical URL, an Open Graph block and JSON-LD, and no two pages share a title — `codeblast archmap` emits them, and this is what keeps the generated maps findable.",
+      "value": "one head block per page, titles distinct",
+      "metric": "the four head elements on every docs/*.html, plus the set of titles",
+      "method": "src/archmap-html.ts builds the block from --repo-url / --site-url / --og-image (all optional: absent flags mean no canonical and no og:url rather than a guessed one) and names each page by repository and kind, so an architecture map, a blast-radius overlay and a change map of the same repo do not collide. The check scans every committed page.",
+      "repro": "bun src/bin.ts archmap <graph.db> --out arch.html --repo-url <url> --site-url https://alloevil.github.io/codeblast --og-image <url>",
+      "evidence": "docs/tabby-arch.html",
+      "as_of": "2026-09-14",
+      "check": {
+        "cmd": "python3 -c \"import re, pathlib\npages = sorted(pathlib.Path('docs').glob('*.html'))\nbad, titles = [], {}\nfor f in pages:\n    h = f.read_text(encoding='utf-8')\n    t = re.search(r'<title>([^<]+)</title>', h).group(1)\n    titles.setdefault(t, []).append(f.name)\n    if not re.search(r'name=\\x22description\\x22[^>]+content=\\x22[^\\x22]{40,}', h): bad.append(f.name + ':description')\n    if 'rel=\\x22canonical\\x22' not in h: bad.append(f.name + ':canonical')\n    if 'property=\\x22og:' not in h: bad.append(f.name + ':og')\n    if 'application/ld+json' not in h: bad.append(f.name + ':json-ld')\nfor t, names in titles.items():\n    if len(names) > 1: bad.append('duplicate title: ' + ','.join(names))\nprint('pages', len(pages), 'distinct titles', len(titles), 'problems', bad[:3])\nassert not bad\"",
+        "expect": {
+          "regex": "problems \\[\\]$"
+        },
+        "timeout": 120
+      }
     }
   ]
 }
