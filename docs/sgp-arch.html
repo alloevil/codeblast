@@ -63,6 +63,11 @@
   .edge.cyclic { stroke: var(--warn); stroke-dasharray: 5 3; stroke-width: 2;
     animation: cycflow 1.2s linear infinite; }
   @keyframes cycflow { to { stroke-dashoffset: -16; } }
+  /* 循环依赖用虚线静止表示即可 —— 虚线与颜色承载信息，流动只是让它更显眼。
+     reduced-motion 下停掉动画，而不是去掉虚线。 */
+  @media (prefers-reduced-motion: reduce) {
+    .edge.cyclic { animation: none; }
+  }
   .edge.hi { stroke: #d29922 !important; stroke-width: 2.6; stroke-opacity: 1; }
   .edge.dim { stroke-opacity: 0.1; }
   .edge.faint { stroke-opacity: 0.06; }
