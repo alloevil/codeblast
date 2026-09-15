@@ -30,6 +30,16 @@
   .card .stats { font-family: ui-monospace,Menlo,monospace; font-size: 12.5px; color: var(--accent); margin-top: 10px; }
   .foot { margin-top: 40px; color: var(--dim); font-size: 13px; }
   .foot a { color: var(--accent); }
+
+  /* reduced-motion：本页的动效只是悬停与筛选过渡，关掉后信息完全不变。 */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: .001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: .001ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 </style>
 <script type="application/ld+json">
 {
