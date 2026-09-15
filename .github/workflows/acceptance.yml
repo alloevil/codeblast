@@ -11,6 +11,12 @@ on:
         description: "变异数量"
         default: "10"
 
+env:
+  # 基准仓钉在固定 commit：不钉的话抓到的是当天 HEAD，上游一改测得的召回就漂移
+  # （tRPC 迁到 vitest 那次就是这样把每周的 acceptance 跑红的）。
+  TRPC_SHA: 573d4f33ee2896c2bb7106203a936ae892d1ef1c
+  GRAPHQL_TOOLS_SHA: 2a3763f514d986074e5a2bcd4d4a41274b1bda96
+
 permissions:
   contents: read
   issues: write
@@ -31,8 +37,18 @@ jobs:
       - name: Self smoke (fail-loud check)
         run: node dist/bin.js demo
 
-      - name: Clone benchmark repo (tRPC)
-        run: git clone --depth 300 https://github.com/trpc/trpc.git /tmp/trpc
+      # 报告解析器自检：vitest 的 JSON 是多行的（还带 pnpm 横幅），
+      # 2026-09 那次每周失败就是解析方式不对造成的（issue #45），这里把它钉住。
+      - name: Parser self-check (fail-loud check)
+        run: python3 eval/parser_selfcheck.py
+
+      - name: Clone benchmark repo (tRPC, pinned)
+        run: |
+          git init -q /tmp/trpc
+          git -C /tmp/trpc remote add origin https://github.com/trpc/trpc.git
+          git -C /tmp/trpc fetch -q --depth 1 origin "$TRPC_SHA"
+          git -C /tmp/trpc checkout -q FETCH_HEAD
+          git -C /tmp/trpc log -1 --format='tRPC @ %h %ad' --date=short
 
       - name: Install benchmark deps
         working-directory: /tmp/trpc
@@ -69,15 +85,41 @@ jobs:
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
+            // 证据：先看本步写下的 mutation 日志；若失败发生在更早的步骤（安装/建图），
+            // 那份日志根本不存在 —— 此时附上失败步骤名与失败 job 的日志尾部，
+            // 而不是留一句 "(log unavailable)"（issue #44 就是这样什么都没说）。
             const fs = require('fs');
-            let log = '(log unavailable)';
+            let log = '';
             try { log = fs.readFileSync('/tmp/mutation.log', 'utf8').slice(-3000); } catch {}
+            const jobs = await github.rest.actions.listJobsForWorkflowRun({
+              owner: context.repo.owner, repo: context.repo.repo,
+              run_id: context.runId,
+            });
+            const failed = jobs.data.jobs.filter(j => j.conclusion === 'failure');
+            const steps = failed.flatMap(j =>
+              j.steps.filter(s => s.conclusion === 'failure')
+                    .map(s => `- ${j.name} → ${s.name}`)).join('\n');
+            let jobLog = '';
+            if (failed.length) {
+              try {
+                const resp = await github.rest.actions.downloadJobLogsForWorkflowRun({
+                  owner: context.repo.owner, repo: context.repo.repo, job_id: failed[0].id,
+                });
+                jobLog = String(resp.data || '').slice(-3000);
+              } catch (e) { jobLog = `(job log download failed: ${e.message})`; }
+            }
+            const evidence = [
+              steps ? `Failed steps:\n${steps}` : '',
+              log ? `Tail of the mutation log:\n\`\`\`\n${evidence}\n\`\`\`` : '',
+              jobLog ? `Tail of the failing job's log:\n\`\`\`\n${jobLog}\n\`\`\`` : '',
+              !log && !jobLog ? '(no log captured — see the run above)' : '',
+            ].filter(Boolean).join('\n\n');
             await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
               title: `acceptance regression — recall gate failed (${new Date().toISOString().slice(0,10)})`,
               labels: ['acceptance-regression'],
-              body: `Weekly acceptance run failed the 100% recall gate.\n\nRun: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}\n\n\`\`\`\n${log}\n\`\`\``,
+              body: `Weekly acceptance run failed the 100% recall gate.\n\nRun: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}\n\n\`\`\`\n${evidence}\n\`\`\``,
             });
 
   # 第二基准：jest 跑器（graphql-tools, npm workspaces + babel-jest）。全程 ~5 分钟（装依赖 1min + 建图 10s + 10 变异 2min）。
@@ -97,8 +139,13 @@ jobs:
       - run: bun install
       - run: bun run build
 
-      - name: Clone benchmark repo (graphql-tools)
-        run: git clone --depth 400 https://github.com/ardatan/graphql-tools.git /tmp/graphql-tools
+      - name: Clone benchmark repo (graphql-tools, pinned)
+        run: |
+          git init -q /tmp/graphql-tools
+          git -C /tmp/graphql-tools remote add origin https://github.com/ardatan/graphql-tools.git
+          git -C /tmp/graphql-tools fetch -q --depth 1 origin "$GRAPHQL_TOOLS_SHA"
+          git -C /tmp/graphql-tools checkout -q FETCH_HEAD
+          git -C /tmp/graphql-tools log -1 --format='graphql-tools @ %h %ad' --date=short
 
       - name: Install benchmark deps
         working-directory: /tmp/graphql-tools
@@ -145,5 +192,5 @@ jobs:
               repo: context.repo.repo,
               title: `acceptance regression — jest benchmark recall gate failed (${new Date().toISOString().slice(0,10)})`,
               labels: ['acceptance-regression'],
-              body: `Weekly acceptance run failed the 100% recall gate on the jest benchmark (graphql-tools).\n\nRun: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}\n\n\`\`\`\n${log}\n\`\`\``,
+              body: `Weekly acceptance run failed the 100% recall gate on the jest benchmark (graphql-tools).\n\nRun: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}\n\n\`\`\`\n${evidence}\n\`\`\``,
             });

@@ -68,6 +68,31 @@ def impact_test_files(node_id: str) -> set[str]:
     call_files = {it["file"] for it in data["items"] if it["level"] == "tests" and it.get("channel") == "call"}
     return all_files, call_files
 
+def _load_report(text: str) -> dict | None:
+    """把一份测试报告文本解析成 dict。
+
+    vitest 的 JSON 报告是多行的，且前面常有 pnpm 横幅，所以不能"找一行以 { 开头的行"；
+    先按整体解析，失败就把首个 { 到末个 } 之间整段取出再解析。
+    """
+    try:
+        return json.loads(text)
+    except ValueError:
+        pass
+    start, end = text.find("{"), text.rfind("}")
+    if start >= 0 and end > start:
+        try:
+            return json.loads(text[start:end + 1])
+        except ValueError:
+            return None
+    return None
+
+
+def _read_report_file(path: str) -> dict | None:
+    try:
+        return _load_report(Path(path).read_text(encoding="utf-8", errors="replace"))
+    except OSError:
+        return None
+
 def failed_files(report: dict) -> set[str]:
     """vitest json reporter 与 jest --json 同构：testResults[].{name,status}。"""
     failed = set()
@@ -81,14 +106,21 @@ def run_full_vitest() -> set[str] | None:
     """全量测试，返回失败测试文件相对路径集合；报告解析失败返回 None。"""
     if RUNNER == "jest":
         return run_full_jest()
-    out = subprocess.run(
-        ["pnpm", "vitest", "run", "--reporter=json", "--passWithNoTests"],
-        cwd=REPO, capture_output=True, text=True, timeout=1800,
-    )
-    for line in reversed(out.stdout.splitlines()):
-        if line.startswith("{"):
-            return failed_files(json.loads(line))
-    return None
+    fd, out_path = tempfile.mkstemp(prefix="vitest-full-", suffix=".json")
+    os.close(fd)
+    try:
+        out = subprocess.run(
+            ["pnpm", "vitest", "run", "--reporter=json", f"--outputFile={out_path}",
+             "--passWithNoTests"],
+            cwd=REPO, capture_output=True, text=True, timeout=1800,
+        )
+        report = _read_report_file(out_path) or _load_report(out.stdout or "")
+        return None if report is None else failed_files(report)
+    finally:
+        try:
+            os.unlink(out_path)
+        except OSError:
+            pass
 
 def run_tests_files(files: list[str]) -> set[str] | None:
     """只跑给定测试文件,返回其中失败的（用于复核 flaky）。jest/vitest 都接受路径参数。"""
@@ -114,10 +146,22 @@ def run_tests_files(files: list[str]) -> set[str] | None:
                 os.unlink(out_path)
             except OSError:
                 pass
-    out = subprocess.run(
-        ["pnpm", "vitest", "run", "--reporter=json", "--passWithNoTests", *files],
-        cwd=REPO, capture_output=True, text=True, timeout=1800,
-    )
+    fd, out_path = tempfile.mkstemp(prefix="vitest-recheck-", suffix=".json")
+    os.close(fd)
+    try:
+        out = subprocess.run(
+            ["pnpm", "vitest", "run", "--reporter=json", f"--outputFile={out_path}",
+             "--passWithNoTests", *files],
+            cwd=REPO, capture_output=True, text=True, timeout=1800,
+        )
+        report = _read_report_file(out_path) or _load_report(out.stdout or "")
+        return None if report is None else failed_files(report)
+    finally:
+        try:
+            os.unlink(out_path)
+        except OSError:
+            pass
+    _unreachable = None  # noqa: F841
     for line in reversed(out.stdout.splitlines()):
         if line.startswith("{"):
             return failed_files(json.loads(line))
