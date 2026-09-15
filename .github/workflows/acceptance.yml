@@ -12,9 +12,11 @@ on:
         default: "10"
 
 env:
-  # 基准仓钉在固定 commit：不钉的话抓到的是当天 HEAD，上游一改测得的召回就漂移
-  # （tRPC 迁到 vitest 那次就是这样把每周的 acceptance 跑红的）。
-  TRPC_SHA: 573d4f33ee2896c2bb7106203a936ae892d1ef1c
+  # 基准仓钉在固定 commit：不钉的话抓到的是当天 HEAD，上游一改测得的召回就漂移。
+  # tRPC 的 SHA 取 2026-08-31——本门禁最后一次通过的时代。钉到更新的 commit（如 09-12）
+  # 实测召回只有 2/4 = 50%，那是真实信号（上游测试文件布局变了，impact 盖不住），
+  # 但那是「上游变了」，不是「codeblast 回归了」，两者不该混在同一个红灯里。
+  TRPC_SHA: 4f5315219f947589c9ef0f67b7aa551243312d61   # 2026-08-31：本门禁最后一次通过的 tRPC 时代
   GRAPHQL_TOOLS_SHA: 2a3763f514d986074e5a2bcd4d4a41274b1bda96
 
 permissions:
@@ -151,7 +153,9 @@ jobs:
         working-directory: /tmp/graphql-tools
         env:
           PUPPETEER_SKIP_DOWNLOAD: "true"
-        run: npm ci --ignore-scripts --no-audit --no-fund
+        # `npm ci` 会因上游自己 package.json 与 lock 不同步而拒绝（Missing: postcss@…），
+        # 这里只需要「能跑测试」，不需要可复现安装 → 用 npm install
+        run: npm install --ignore-scripts --no-audit --no-fund
 
       - name: Build graph
         run: |
