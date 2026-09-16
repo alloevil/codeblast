@@ -44,6 +44,12 @@ jobs:
       - name: Parser self-check (fail-loud check)
         run: python3 eval/parser_selfcheck.py
 
+      # filer 自检：真出回归时负责开 issue 的那两个 github-script 步骤，必须先能跑通。
+      # #48 把它们同时改坏（一个 TDZ 自引用、一个引用不存在的变量），而它们只在
+      # 「schedule 触发 + 有回归」时才执行 —— 每周绿灯把它盖住了，回归信号会静默丢失。
+      - name: Filer self-check (fail-loud check)
+        run: node eval/filer_selfcheck.mjs
+
       - name: Clone benchmark repo (tRPC, pinned)
         run: |
           git init -q /tmp/trpc
@@ -110,11 +116,12 @@ jobs:
                 jobLog = String(resp.data || '').slice(-3000);
               } catch (e) { jobLog = `(job log download failed: ${e.message})`; }
             }
+            // 三段证据只写纯文本：evidence 里再套 ``` 会让 body 的代码块提前闭合（#48 的老毛病），
+            // 也让「开出来的 issue」不再是一个可读的代码块。
             const evidence = [
               steps ? `Failed steps:\n${steps}` : '',
-              log ? `Tail of the mutation log:\n\`\`\`\n${evidence}\n\`\`\`` : '',
-              jobLog ? `Tail of the failing job's log:\n\`\`\`\n${jobLog}\n\`\`\`` : '',
-              !log && !jobLog ? '(no log captured — see the run above)' : '',
+              log ? `Tail of the mutation log:\n${log}` : '(no log captured — the failing step ran before mutation testing)',
+              jobLog ? `Tail of the failing job's log:\n${jobLog}` : '',
             ].filter(Boolean).join('\n\n');
             await github.rest.issues.create({
               owner: context.repo.owner,
@@ -140,6 +147,10 @@ jobs:
           node-version: 22
       - run: bun install
       - run: bun run build
+
+      # 同上：jest job 的 filer 也要先自检（#48 漏掉的正是这一半 —— 它引用了不存在的 evidence）。
+      - name: Filer self-check (fail-loud check)
+        run: node eval/filer_selfcheck.mjs
 
       - name: Clone benchmark repo (graphql-tools, pinned)
         run: |
@@ -189,8 +200,33 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            let log = '(log unavailable)';
+            // 与 tRPC job 同样的证据采集：变异日志不存在时（失败发生在安装/建图那一步）
+            // 至少留下失败步骤名与失败 job 的日志尾部，而不是只写一句 "(log unavailable)"（#44 就是这样）。
+            let log = '';
             try { log = fs.readFileSync('/tmp/mutation-jest.log', 'utf8').slice(-3000); } catch {}
+            const jobs = await github.rest.actions.listJobsForWorkflowRun({
+              owner: context.repo.owner, repo: context.repo.repo,
+              run_id: context.runId,
+            });
+            const failed = jobs.data.jobs.filter(j => j.conclusion === 'failure');
+            const steps = failed.flatMap(j =>
+              j.steps.filter(s => s.conclusion === 'failure')
+                    .map(s => `- ${j.name} → ${s.name}`)).join('\n');
+            let jobLog = '';
+            if (failed.length) {
+              try {
+                const resp = await github.rest.actions.downloadJobLogsForWorkflowRun({
+                  owner: context.repo.owner, repo: context.repo.repo, job_id: failed[0].id,
+                });
+                jobLog = String(resp.data || '').slice(-3000);
+              } catch (e) { jobLog = `(job log download failed: ${e.message})`; }
+            }
+            // 三段证据只写纯文本：evidence 里再套 ``` 会让 body 的代码块提前闭合。
+            const evidence = [
+              steps ? `Failed steps:\n${steps}` : '',
+              log ? `Tail of the mutation log:\n${log}` : '(log unavailable — the failing step ran before mutation testing)',
+              jobLog ? `Tail of the failing job's log:\n${jobLog}` : '',
+            ].filter(Boolean).join('\n\n');
             await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
