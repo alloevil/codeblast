@@ -132,9 +132,3 @@ Agent 规范另见 [AGENTS.md](AGENTS.md)。
 M0 图谱引擎 → M1 Impact → M3 架构图 → M4 图 diff + PR bot → M5 精度扩展，**全部交付**；其中两项验收是降级而非通过（M2 的验证方式、M3 原定的"陌生工程师 10 分钟 5 问"从未执行——见 intent.md 的 ⚠️），SemArc 对齐检查已作废。方案与验收标准的单一事实源：[intent.md](intent.md)。
 
 MIT © 2026
-
----
-
-<p align="center">
-  <a href="https://github.com/oil-oil/beautify-github-readme"><img src="./assets/readme/made-with-beautify.svg" width="300" alt="README made with beautify-github-readme"></a>
-</p>
