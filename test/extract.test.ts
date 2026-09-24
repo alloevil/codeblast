@@ -143,6 +143,21 @@ describe("extract (integration-lite)", () => {
     fs.rmSync(exportsFile);
   });
 
+  test("module-mapped package import remains an exact source edge", () => {
+    const mapped = path.join(root, "src", "mapped.ts");
+    fs.writeFileSync(mapped, "export const mapped = 1;\n");
+    const user = path.join(root, "src", "mapped-user.ts");
+    fs.writeFileSync(user, 'import { mapped } from "@internal/mapped"; export const use = mapped;\n');
+    fs.writeFileSync(path.join(root, "tsconfig.json"), JSON.stringify({ compilerOptions: { target: "ES2020", module: "ESNext", moduleResolution: "Bundler", strict: true, baseUrl: ".", paths: { "@internal/*": ["src/*"] }, types: ["node"], typeRoots: [typeRoots] }, include: ["src"] }));
+    const extractor = new Extractor(path.join(root, "tsconfig.json"), root);
+    const source = extractor.sourceFiles().find((file) => extractor.rel(file.fileName) === "src/mapped-user.ts");
+    expect(source).toBeDefined();
+    const result = extractor.extractFile(source!);
+    expect(result.edges.some((edge) => edge.kind === "imports" && edge.dst === "src/mapped.ts" && edge.confidence === "exact")).toBe(true);
+    fs.rmSync(user);
+    fs.rmSync(mapped);
+  });
+
   test("literal package subpath import resolves to workspace source when package is unlinked", () => {
     const subpath = path.join(root, "packages/core/src/subpath.ts");
     fs.writeFileSync(subpath, "export const core = 1;\n");

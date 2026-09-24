@@ -55,6 +55,18 @@ exit 2: analysis or repository error; do not consume the result as evidence
 
 When a future schema version appears, stop and read its contract before making decisions from fields
 that are not explicitly understood. Do not silently fall back to prose parsing.
+
+The formal schemas are committed at [`eval/check-change.schema.json`](eval/check-change.schema.json)
+and [`eval/impact.schema.json`](eval/impact.schema.json). Version policy: within schema version `1`,
+new optional fields may be added, but existing field meanings, enum values, array ordering, and exit
+codes remain stable. A breaking field removal, type change, or enum change requires a new schema
+version and an explicit migration note. Consumers must reject unknown schema versions rather than
+guessing.
+
+The supported agent-facing artifacts are the two version-one JSON contracts and the smoke command:
+`bun run agent-smoke` (or `node eval/agent-workflow-smoke.mjs` after building). A consumer integration
+should fail closed when the schema version is unknown, and should preserve the complete JSON artifact
+alongside its human summary for later review.
 tests. The graph health and warning fields are part of the contract.
 ## Interpretation rules — read before running
 

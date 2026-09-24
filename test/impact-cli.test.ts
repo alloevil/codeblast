@@ -106,3 +106,10 @@ describe("impact --json (subprocess)", () => {
     }
   });
 });
+
+test("formal JSON schemas are committed with version-one contracts", () => {
+  const impactSchema = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, "..", "eval", "impact.schema.json"), "utf8")) as { properties: { schema_version: { const: string } } };
+  const changeSchema = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, "..", "eval", "check-change.schema.json"), "utf8")) as { properties: { schema_version: { const: string } } };
+  expect(impactSchema.properties.schema_version.const).toBe("1");
+  expect(changeSchema.properties.schema_version.const).toBe("1");
+});

@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/alloevil/codeblast/blob/main/eval/check-change.schema.json",
+  "title": "codeblast check-change JSON",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "engine_version", "range", "decision", "risk", "reasons", "recommended_actions", "structural_changes", "affected_test_files", "blind_spot_count", "graph_health", "truncated", "signals", "diff"],
+  "properties": {
+    "schema_version": {"const": "1"},
+    "engine_version": {"type": "string"},
+    "range": {"type": "string"},
+    "decision": {"enum": ["safe-to-review", "targeted-review", "review"]},
+    "risk": {"enum": ["low", "medium", "high"]},
+    "summary": {"type": "string"},
+    "reasons": {"type": "array", "items": {"type": "string"}},
+    "recommended_actions": {"type": "array", "items": {"type": "string"}},
+    "structural_changes": {"type": "integer", "minimum": 0},
+    "affected_test_files": {"type": "integer", "minimum": 0},
+    "blind_spot_count": {"type": "integer", "minimum": 0},
+    "truncated": {"type": "boolean"},
+    "graph_health": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["base", "head", "warnings"],
+      "properties": {
+        "base": {"$ref": "#/$defs/health"},
+        "head": {"$ref": "#/$defs/health"},
+        "warnings": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "signals": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["core_named", "body", "aux_only"],
+      "properties": {
+        "core_named": {"type": "integer", "minimum": 0},
+        "body": {"type": "integer", "minimum": 0},
+        "aux_only": {"type": "boolean"}
+      }
+    },
+    "diff": {"type": "object"}
+  },
+  "$defs": {
+    "health": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["files", "nodes", "edges", "blind_spots"],
+      "properties": {
+        "files": {"type": "integer", "minimum": 0},
+        "nodes": {"type": "integer", "minimum": 0},
+        "edges": {"type": "integer", "minimum": 0},
+        "blind_spots": {"type": "integer", "minimum": 0}
+      }
+    }
+  }
+}
