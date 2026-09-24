@@ -47,13 +47,31 @@ jobs:
         run: node dist/bin.js index /tmp/trpc-modern --db /tmp/trpc-modern.db
       - name: Mutation recall (informational)
         id: mutation
+        continue-on-error: true
         run: |
+          set +e
           python3 eval/mutation_check.py /tmp/trpc-modern /tmp/trpc-modern.db "${{ github.event.inputs.mutants || 5 }}" 2>&1 | tee /tmp/modern-mutation.log
-          grep -oP '^recall: \d+/\d+ = \K\d+' /tmp/modern-mutation.log | tail -1 | sed 's/^/modern_recall=/' >> "$GITHUB_STEP_SUMMARY" || true
+          STATUS=${PIPESTATUS[0]}
+          set -e
+          RECALL=$(grep -oP '^recall: \d+/\d+ = \K\d+' /tmp/modern-mutation.log | tail -1 || true)
+          CALL_RECALL=$(grep -oP '^call-channel recall: \d+/\d+ = \K\d+' /tmp/modern-mutation.log | tail -1 || true)
+          printf 'modern_recall=%s\n' "${RECALL:-unavailable}" >> "$GITHUB_STEP_SUMMARY"
+          printf 'modern_call_channel_recall=%s\n' "${CALL_RECALL:-unavailable}" >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "## Modern compatibility result"
+            echo "- tRPC commit: $MODERN_TRPC_SHA"
+            echo "- full impact recall: ${RECALL:-unavailable}"
+            echo "- call-channel recall: ${CALL_RECALL:-unavailable}"
+            echo "- mutation command exit: $STATUS"
+            echo "- interpretation: informational; the pinned acceptance gate remains authoritative"
+          } > /tmp/modern-summary.md
+          exit 0
       - name: Upload modern report
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: modern-acceptance-${{ github.run_id }}
-          path: /tmp/modern-mutation.log
+          path: |
+            /tmp/modern-mutation.log
+            /tmp/modern-summary.md
           if-no-files-found: ignore

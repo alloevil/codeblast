@@ -53,8 +53,7 @@ codeblast index <repo-root> --db /tmp/graph.db
 
 Auto-discovers every package `tsconfig.json` in a monorepo and ingests Python via AST. Re-running only
 processes files whose content hash changed. Stdout is one JSON object — this is a real run of
-`codeblast index` against [tRPC](https://github.com/trpc/trpc) at commit `66d0544` with codeblast 0.3.0
-(timing is machine-dependent; the counts are not):
+`codeblast index` against [tRPC](https://github.com/trpc/trpc) at commit `66d0544` with the historical codeblast 0.3.0 benchmark
 
 ```json
 { "db": "/tmp/graph.db", "seconds": 5.2, "tsconfigs": 34, "files_indexed": 957, "files_skipped": 0,
@@ -93,8 +92,20 @@ Output (`--json`):
     via_file: string; via_line: number;       // where the dependency occurs (rule 6)
   }>;
   co_change_hints: Array<{ file: string; co_commits: number; evidence: string }>;  // rule 5
+  guidance: {
+    review_first: string[];  // call-channel non-test nodes
+    run_tests: string[];     // test file paths, de-duplicate before running
+    conservative: string[];  // non-test file-channel nodes; never discard
+    warnings: string[];      // truncation and blind-spot warnings
+  };
 }
 ```
+
+The `guidance` object is a convenience projection of `items`; it does not add analysis results.
+Use `review_first` for the initial callsite checklist, `run_tests` for the affected test files,
+and `conservative` as the import/re-export safety net. `warnings` is non-empty when the result is
+incomplete or the target file contains unresolved analysis. Always retain `via_file` and `via_line`
+when reporting a dependency.
 
 How to use it: `items.filter(level === "direct")` is the callsite checklist. `items.filter(level ===
 "tests")` de-duplicated by `file` is the test set to run. Test-directory fixtures are included
