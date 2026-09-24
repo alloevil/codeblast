@@ -1,10 +1,24 @@
 import fs from "node:fs";
+import path from "node:path";
 import { openDatabase, type Database } from "./db";
 import { selfCommand, spawnSync } from "./proc";
 import { graphDiff, type GraphDiff } from "./graph-diff";
 import { impact } from "./impact";
 import { reviewDecision } from "./pr-decision";
-import { AUX_RE, TEST_RE, bodySignalCount, coreNamedCount, structuralTotal, type BodyChange } from "./pr-silence";
+import { TEST_RE, bodySignalCount, coreNamedCount, structuralTotal, type BodyChange } from "./pr-silence";
+
+const SCHEMA_VERSION = "1";
+const EXIT_OK = 0;
+const EXIT_REVIEW = 1;
+const EXIT_ERROR = 2;
+const readVersion = (): string => {
+  try {
+    const parsed: unknown = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, "..", "package.json"), "utf8"));
+    if (parsed && typeof parsed === "object" && "version" in parsed && typeof parsed.version === "string") return parsed.version;
+  } catch { /* bundled consumers may not ship package.json */ }
+  return "unknown";
+};
+const ENGINE_VERSION = readVersion();
 
 const [repo, baseSha, headSha] = process.argv.slice(2);
 if (!repo || !baseSha || !headSha) {
@@ -70,6 +84,8 @@ if (healthWarnings.length > 0) {
   decision.recommendedActions.unshift("Rebuild or inspect the graph before relying on this decision.");
 }
 const output = {
+  schema_version: SCHEMA_VERSION,
+  engine_version: ENGINE_VERSION,
   range: `${baseSha}..${headSha}`,
   decision: decision.risk === "high" ? "review" : decision.risk === "medium" ? "targeted-review" : "safe-to-review",
   risk: decision.risk,
@@ -91,3 +107,4 @@ const output = {
 console.log(JSON.stringify(output));
 dbA.close();
 dbB.close();
+process.exitCode = healthWarnings.length > 0 || decision.risk === "high" ? EXIT_REVIEW : EXIT_OK;

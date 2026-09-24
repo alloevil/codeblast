@@ -129,6 +129,20 @@ describe("extract (integration-lite)", () => {
     expect(r.edges.find((e) => e.kind === "imports" && e.dst === "src/lib.ts")?.confidence).toBe("exact");
   });
 
+  test("package export subpath fixture resolves through the workspace fallback", () => {
+    const exportsFile = path.join(root, "packages/core/src/subpath.ts");
+    fs.writeFileSync(exportsFile, "export const core = 1;\n");
+    const userFile = path.join(root, "src", "package-user.ts");
+    fs.writeFileSync(userFile, 'import { core } from "@ws/core/subpath"; export const use = core;\n');
+    const extractor = new Extractor(path.join(root, "tsconfig.json"), root);
+    const source = extractor.sourceFiles().find((file) => extractor.rel(file.fileName) === "src/package-user.ts");
+    expect(source).toBeDefined();
+    const result = extractor.extractFile(source!);
+    expect(result.edges.some((edge) => edge.kind === "imports" && edge.dst === "packages/core/src/subpath.ts")).toBe(true);
+    fs.rmSync(userFile);
+    fs.rmSync(exportsFile);
+  });
+
   test("literal package subpath import resolves to workspace source when package is unlinked", () => {
     const subpath = path.join(root, "packages/core/src/subpath.ts");
     fs.writeFileSync(subpath, "export const core = 1;\n");

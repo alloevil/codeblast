@@ -43,3 +43,18 @@ body:
         - not enough information
     validations:
       required: true
+  - type: input
+    id: schema_version
+    attributes:
+      label: codeblast schema version (optional)
+      description: If visible in the JSON or comment, report the schema_version without including private data.
+  - type: dropdown
+    id: evidence_type
+    attributes:
+      label: Evidence available
+      options:
+        - public PR and commit link
+        - redacted command output
+        - no reproducible public evidence
+    validations:
+      required: true

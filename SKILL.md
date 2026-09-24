@@ -33,6 +33,28 @@ Recommended agent loop:
 ```
 
 Never turn a `safe-to-review` routing result into “safe to merge”; the command routes attention and
+
+`check-change --json` has `schema_version: "1"` and `engine_version`. Its exit codes are stable:
+
+- `0`: analysis completed with no high-risk or graph-health warning;
+- `1`: analysis completed but routes the change to review (`high` risk or incomplete graph);
+- `2`: command, repository, worktree, or graph construction error.
+
+`impact --json` also has `schema_version: "1"`; every guidance array is de-duplicated and sorted for
+stable agent diffs. Treat the schema version as a compatibility boundary, not as a prose suggestion.
+
+Machine-readable compatibility contract:
+
+```text
+impact --json: schema_version=1, guidance arrays sorted and de-duplicated
+check-change --json: schema_version=1, engine_version, decision, risk, graph_health
+exit 0: result complete and no high-risk routing
+exit 1: result complete but review routing is required
+exit 2: analysis or repository error; do not consume the result as evidence
+```
+
+When a future schema version appears, stop and read its contract before making decisions from fields
+that are not explicitly understood. Do not silently fall back to prose parsing.
 tests. The graph health and warning fields are part of the contract.
 ## Interpretation rules — read before running
 

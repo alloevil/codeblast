@@ -53,10 +53,12 @@ describe("impact --json (subprocess)", () => {
       });
       expect(p.status).toBe(0);
       expect(p.stdout.length).toBeGreaterThan(100_000);
-      const parsed = JSON.parse(p.stdout) as { target: string; items: unknown[]; guidance: { review_first: string[]; run_tests: string[]; conservative: string[]; warnings: string[] } };
+      const parsed = JSON.parse(p.stdout) as { schema_version: string; target: string; items: unknown[]; guidance: { review_first: string[]; run_tests: string[]; conservative: string[]; warnings: string[] } };
+      expect(parsed.schema_version).toBe("1");
       expect(parsed.target).toBe("src/target.ts#target");
       expect(parsed.items).toHaveLength(600);
       expect(parsed.guidance.review_first).toHaveLength(600);
+      expect(parsed.guidance.review_first).toEqual([...parsed.guidance.review_first].sort());
       expect(parsed.guidance.run_tests).toEqual([]);
       expect(parsed.guidance.conservative).toEqual([]);
       expect(parsed.guidance.warnings).toEqual([]);
