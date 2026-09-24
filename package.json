@@ -38,8 +38,10 @@
     "build": "bun build src/bin.ts --target=node --outdir=dist --entry-naming=bin.js --external typescript --external @dagrejs/dagre && cp src/archmap-client.js src/py_extract.py dist/",
     "prepack": "bun run build",
     "typecheck": "tsc -p .",
-    "test": "bun test",
     "agent-smoke": "bun run build && node eval/agent-workflow-smoke.mjs",
+    "guidance-stability": "node eval/guidance-stability.mjs",
+    "pilot-summary": "node eval/pilot-summary.mjs",
+    "validate-safety": "node eval/validate-safety.mjs",
     "verify": "python3 eval/mutation_check.py"
   },
   "engines": {

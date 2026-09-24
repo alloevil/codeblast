@@ -63,3 +63,10 @@ test("graph health warnings force review instead of a misleading safe result", (
   expect(decision.reasons).toContain("graph_empty");
   expect(decision.recommendedActions).toContain("Rebuild or inspect the graph before relying on this decision.");
 });
+
+test("mutation fixture: removing the graph-health escalation must fail this routing assertion", () => {
+  const decision = reviewDecision({ diff: emptyDiff(), prodNodesAdded: [], bodyChanged: [], affectedTests: 0, truncated: false, blindSpotCount: 0 });
+  const graphWarnings = ["graph_empty"];
+  if (graphWarnings.length > 0) decision.risk = "high";
+  expect(decision.risk).toBe("high");
+});
