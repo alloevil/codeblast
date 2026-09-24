@@ -42,16 +42,17 @@ const t0 = performance.now();
 const result = impact(db, targetId, maxNodes);
 const ms = (performance.now() - t0).toFixed(0);
 if (process.argv.includes("--json")) {
+  const uniqueSorted = (values: string[]) => [...new Set(values)].sort((a, b) => a.localeCompare(b));
   const guidance = {
-    review_first: result.items.filter((it) => it.channel === "call" && it.level !== "tests").map((it) => it.id),
-    run_tests: result.items.filter((it) => it.level === "tests").map((it) => it.file),
-    conservative: result.items.filter((it) => it.channel === "file" && it.level !== "tests").map((it) => it.id),
+    review_first: uniqueSorted(result.items.filter((it) => it.channel === "call" && it.level !== "tests").map((it) => it.id)),
+    run_tests: uniqueSorted(result.items.filter((it) => it.level === "tests").map((it) => it.file)),
+    conservative: uniqueSorted(result.items.filter((it) => it.channel === "file" && it.level !== "tests").map((it) => it.id)),
     warnings: [
       ...(result.truncated ? ["impact_truncated_run_full_test_suite"] : []),
       ...(result.blind_spot_count > 0 ? ["blind_spots_may_underestimate_impact"] : []),
     ],
   };
-  process.stdout.write(JSON.stringify({ ...result, guidance }) + "\n");
+  process.stdout.write(JSON.stringify({ schema_version: "1", ...result, guidance }) + "\n");
   db.close();
   process.exitCode = 0;
 } else {

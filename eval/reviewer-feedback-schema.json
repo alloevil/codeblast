@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "codeblast reviewer feedback receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "kind", "outcome", "public_evidence"],
+  "properties": {
+    "schema_version": {"const": "1"},
+    "kind": {"enum": ["false-positive", "missed-impact", "noise", "incorrect-silence", "incorrect-recommendation"]},
+    "outcome": {"enum": ["correct", "needed-correction", "insufficient-information"]},
+    "public_evidence": {"type": "boolean", "description": "True only when the report can be reproduced from public links or redacted output."},
+    "repository": {"type": "string", "format": "uri"},
+    "pull_request": {"type": "string", "format": "uri"},
+    "codeblast_version": {"type": "string"},
+    "impact_schema_version": {"type": "string"},
+    "notes": {"type": "string", "maxLength": 2000}
+  }
+}
