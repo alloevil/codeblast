@@ -48,8 +48,10 @@ jobs:
           git add . && git commit -qm base
           printf '%s\n' 'export function api(x: string, y = 1) { return x + y; }' > src/api.ts
           git add . && git commit -qm change
-          node_modules/.bin/codeblast check-change . HEAD~1 HEAD --json > result.json
-          node -e 'const d=require("./result.json"); if (!d.graph_health || !d.risk) process.exit(1)'
+          code=0
+          node_modules/.bin/codeblast check-change . HEAD~1 HEAD --json > result.json || code=$?
+          test "$code" -le 1
+          node "$GITHUB_WORKSPACE/eval/validate-safety.mjs" result.json
       - name: Check tag matches package.json
         run: |
           pkg="v$(node -p "require('./package.json').version")"
