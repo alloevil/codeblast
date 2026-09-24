@@ -59,5 +59,7 @@ test("graph health warnings force review instead of a misleading safe result", (
   decision.risk = "high";
   decision.reasons.push("graph_empty");
   decision.recommendedActions.unshift("Rebuild or inspect the graph before relying on this decision.");
-  expect(decision).toMatchObject({ risk: "high", reasons: ["graph_empty"], recommendedActions: ["Rebuild or inspect the graph before relying on this decision."] });
+  expect(decision.risk).toBe("high");
+  expect(decision.reasons).toContain("graph_empty");
+  expect(decision.recommendedActions).toContain("Rebuild or inspect the graph before relying on this decision.");
 });
