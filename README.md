@@ -1,4 +1,4 @@
-**codeblast** is a deterministic code-graph CLI for TypeScript and Python repositories that tells developers and AI agents what breaks before a change is merged.
+**codeblast** is the pre-merge blast-radius check for TypeScript monorepos and AI coding agents. It tells you what to review, which tests to run, and when the graph is incomplete — with a source line for every reported edge.
 
 <p align="center">
   <img src="assets/readme/hero.svg" width="100%" alt="codeblast — deterministic code graph: know what breaks before you merge"/>
@@ -14,6 +14,29 @@
   <a href="SKILL.md"><img src="https://img.shields.io/badge/Agent-Skill-7c3aed?style=flat-square" alt="agent skill"/></a>
   <img src="https://img.shields.io/badge/license-MIT-8b949e?style=flat-square" alt="MIT"/>
 </p>
+
+## Get value in one pull request
+
+Copy this workflow into `.github/workflows/codeblast.yml`:
+
+```yaml
+name: codeblast
+on: pull_request
+permissions:
+  contents: read
+  pull-requests: write
+jobs:
+  codeblast:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: alloevil/codeblast@v0.3.2
+```
+
+On a structural PR, codeblast posts a bounded review decision, affected tests, `file:line` evidence,
+and explicit blind-spot warnings. On a docs-only or otherwise irrelevant PR, it stays silent. It runs
+locally in the runner; source is not uploaded to a codeblast service.
 
 ## What it is
 
@@ -49,7 +72,7 @@ Built for humans (CLI / interactive HTML / PR comments) and for AI agents ([SKIL
 ```bash
 npx codeblast demo            # build a graph of the current repo, run one impact query, emit the map
 npm i -g codeblast            # or install globally; needs Node ≥ 22.13 (built-in sqlite) or Bun
-                              # npm serves 0.3.1
+                              # npm serves 0.3.2
 
 # Install as an agent skill (Claude Code, Codex, Cursor, and 14 more harnesses)
 npx skills add alloevil/codeblast
@@ -57,28 +80,28 @@ npx skills add alloevil/codeblast
 
 ### As a GitHub Action (one line)
 
+The smallest useful installation is a PR workflow. Pin the release tag, or pin the commit when your
+repository requires immutable third-party actions:
+
 ```yaml
-# .github/workflows/codeblast.yml
 name: codeblast
 on: pull_request
 permissions:
   contents: read
   pull-requests: write
 jobs:
-  analyze:
+  codeblast:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }      # the analyzer compares base and head commits
-      - uses: alloevil/codeblast@v0.3.1
+        with: { fetch-depth: 0 }
+      - uses: alloevil/codeblast@v0.3.2
 ```
 
-The action builds the analyzer from the ref you pinned (not from npm, which can lag),
-posts one sticky comment per PR and updates it in place, and stays silent when the diff
-has no structural change. Inputs: `base`, `head`, `repo-url`, `comment` (set to `false`
-to only produce the file); outputs: `has_comment`, `comment_path`. If you prefer to own
-the commenting step, copy [`.github/workflows-template/codeblast.yml`](.github/workflows-template/codeblast.yml)
-instead — it runs the same command with `npx`.
+The action builds the analyzer from the ref you pinned, posts one sticky comment per PR, and stays
+silent when the diff has no structural change. For the full input/output contract, use the
+[workflow template](.github/workflows-template/codeblast.yml).
+
 
 ## Why not yet another LLM diagram tool
 
@@ -122,6 +145,19 @@ codeblast cochange <repo> graph.db
 ```
 
 ### PR bot (runs in CI, stays quiet by default)
+### Reproducible PR cases
+
+These are not synthetic diagrams; each case is a committed replay or pilot artifact:
+
+| Case | Run it | Reviewer takeaway |
+|---|---|---|
+| Function-body behavior change | `codeblast pr-comment <repo> <base> <head>` | A symbol can keep the same shape while its callers still need review. |
+| Exported signature change | `codeblast check-change <repo> <base> <head> --json` | API contraction or signature changes route to targeted review or review. |
+| Incomplete static graph | `codeblast impact <db> <symbol> --json` | `warnings` and `blind_spot_count` prevent an apparently complete answer. |
+
+The self-pilot record is [`eval/pilot-2026-09-24.json`](eval/pilot-2026-09-24.json): the published
+package indexed this repository with 0 extraction failures and returned separate review-first and test
+guidance. It is evidence that the workflow runs, not a claim of universal accuracy.
 
 Copy [`.github/workflows-template/codeblast.yml`](.github/workflows-template/codeblast.yml) into your repo (it runs `npx codeblast pr-comment`, no other setup):
 every PR gets an automatic comment with structural changes + blast radius + new symbols with no test coverage; **PRs with no structural change get zero comments**.
@@ -129,6 +165,48 @@ Replayed against 50 real commits: 42 correctly stayed silent. Comment usefulness
 four review rounds — rounds 1–3 independent blind review, round 4 by the current model — scored 25% / 75% / 57% / 20% useful, against 7/8 = 87.5% when the
 authoring agent rated its own comments; both numbers and the fixes that followed each round are logged in
 [intent.md](intent.md).
+## Evidence you can rerun
+
+The headline promise is bounded: TypeScript, within the statically analyzable scope, and measured by
+mutation testing against the real test suite. The committed runs are inspectable under [`eval/`](eval/)
+and every published figure has a machine-readable receipt in [`docs/claims.json`](docs/claims.json).
+
+| Scenario | Evidence | What it proves |
+|---|---|---|
+| tRPC, 30 injected mutations | [`mutation-2026-08-28-trpc-n30.json`](eval/mutation-2026-08-28-trpc-n30.json) | 28/28 killed mutants recalled; 2 were not killed by the suite |
+| graphql-tools, Jest | [`mutation-2026-09-07-graphql-tools-n10.json`](eval/mutation-2026-09-07-graphql-tools-n10.json) | 10/10 killed mutants recalled across a second workspace layout |
+| Real package pilot | [`pilot-2026-09-24.json`](eval/pilot-2026-09-24.json) | 32 files indexed, 0 extraction failures, guidance separated from repository-wide blind spots |
+
+The pilot is not a benchmark and does not establish a universal accuracy rate. It is a reproducible
+smoke run of the published package against this repository.
+
+### A reviewer's decision, not a diagram
+
+For agents and CI, `check-change --json` returns a routing decision plus evidence:
+
+```json
+{
+  "decision": "targeted-review",
+  "risk": "medium",
+  "affected_test_files": 3,
+  "blind_spot_count": 0,
+  "graph_health": {"warnings": []}
+}
+```
+
+### What the numbers do and do not mean
+
+The 28/28 and 10/10 figures are mutation-testing recall on two pinned repositories. They mean every
+test file that failed for each killed mutation was present in the predicted set **within the measured
+static-analysis boundary**. They do not mean codeblast catches every production regression, understands
+dynamic runtime behavior, or provides function-level guarantees for Python.
+
+The conservative import/file channel is deliberately retained: a controlled call-only ablation reached
+better precision but recalled only 2/14 killed mutations. Treat `call` items as the first reading list,
+the complete result as the test safety net, and every blind spot as an explicit limit.
+`review` means inspect before merge; it does not mean the tool has proven the change unsafe. A nonzero
+graph failure or an incomplete impact result is a reason to stop and inspect, not a reason to hide the
+uncertainty.
 
 ## The precision promise (bounded, and evidence-backed)
 
@@ -174,13 +252,22 @@ safe to merge. `review` is required when API surface contracts, removed symbols,
 results are detected.
 ## For AI agents
 
-```
+```text
 before editing:  impact "symbol" --json    → callsite list into context, so nothing gets missed
-after editing:   change HEAD~1 HEAD --json → self-check for scope creep and accidental deletions
+after editing:   check-change repo base head --json → risk, graph health, affected tests and warnings
 ```
 
-The full contract and interpretation discipline (including "never pretend the blind-spot list is complete") is in [SKILL.md](SKILL.md).
-Agent conventions: [AGENTS.md](AGENTS.md).
+The full contract and interpretation discipline (including “never pretend the impact list is complete”)
+is in [SKILL.md](SKILL.md). Agent conventions: [AGENTS.md](AGENTS.md).
+
+## Help improve the reviewer
+
+Found a false positive, missed impact, noisy comment, or wrong silence decision? Open a
+[privacy-safe bot feedback issue](https://github.com/alloevil/codeblast/issues/new?template=bot-feedback.yml).
+Share the public PR URL and a redacted explanation; never paste source code, secrets, private diffs,
+or full repository contents. Reproducible benchmark results and pilot evidence belong in [`eval/`](eval/),
+not in issue comments.
+
 
 ## FAQ
 

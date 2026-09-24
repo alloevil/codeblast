@@ -9,18 +9,31 @@ Three deterministic queries over a graph built by `tsc` (TypeScript, function-le
 Python AST (file-level with typed-call upgrades). Every result carries the `file:line` where the
 dependency actually occurs. The graph comes from the code, not from a model's reading of it.
 
-## When to run it
-
 | Situation | Command | What you get back |
 |---|---|---|
-| About to edit an exported symbol | `codeblast impact <db> "<symbol>" --json` | The callsites you must review and the tests you must run |
+| About to edit an exported symbol | `codeblast impact <db> "<symbol>" --json` | `guidance.review_first`, `guidance.run_tests`, conservative items and warnings |
 | Finished a multi-file change; verifying scope | `codeblast change <repo> HEAD~1 HEAD --json` | Symbols and dependency edges added / removed / renamed |
+| Need one merge-safety decision | `codeblast check-change <repo> <base> <head> --json` | Risk, decision, graph health, affected tests and recommended actions |
 | Need to understand an unfamiliar repo | `codeblast archmap <db> --out arch.html` | Module → file → symbol map with cycle detection |
 | Reviewing a PR | `codeblast pr-comment <repo> <base> <head>` | Markdown review comment; empty output when nothing structural changed |
 
 Prerequisites: Node ≥ 22.13 or Bun ≥ 1.0 (`npx codeblast` works with no install); `python3` for Python
 repos; the target repo's dependencies installed (missing `node_modules` turns external calls into blind spots).
 
+
+Recommended agent loop:
+
+```text
+1. index the repository and check `failures == 0`
+2. before editing: read `impact --json` and start with `guidance.review_first`
+3. make the change
+4. run `check-change --json` against base and head
+5. run distinct files from `guidance.run_tests` / `affected_test_files`
+6. report `warnings`, blind spots, and every `via_file:via_line` evidence location
+```
+
+Never turn a `safe-to-review` routing result into “safe to merge”; the command routes attention and
+tests. The graph health and warning fields are part of the contract.
 ## Interpretation rules — read before running
 
 These are the mistakes an agent makes with this tool. Each one has produced a wrong answer in practice.

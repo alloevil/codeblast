@@ -1,7 +1,7 @@
-# codeblast PR 结构分析 — 复制到目标仓库 .github/workflows/codeblast.yml
+# codeblast PR review — copy this file to .github/workflows/codeblast.yml
 #
-# 行为：每个 PR 对比 base↔head 的代码图谱；有结构变化则评论（更新同一条评论），
-#       无结构变化保持静默。
+# It runs entirely in the GitHub runner. The analyzer compares base↔head, posts one sticky
+# comment when there is structural or behavioral signal, and stays silent otherwise.
 name: codeblast
 on:
   pull_request:
