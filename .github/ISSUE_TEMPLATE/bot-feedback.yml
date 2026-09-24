@@ -25,3 +25,21 @@ body:
     id: repo
     attributes:
       label: 仓库与 PR 链接（可选）
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy
+      description: Do not paste source code, secrets, proprietary diffs, or full repository contents. Use public links or redact examples.
+      options:
+        - label: I removed secrets and proprietary source from this report.
+          required: true
+  - type: dropdown
+    id: outcome
+    attributes:
+      label: Reviewer outcome
+      options:
+        - recommendation correct
+        - recommendation needed correction
+        - not enough information
+    validations:
+      required: true

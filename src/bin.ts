@@ -8,6 +8,7 @@
  *   codeblast archmap <graph.db> --out arch.html [--impact <sym>] [--diff <base.db>]
  *   codeblast cochange <repo> <graph.db>
  *   codeblast pr-comment <repo> <base-sha> <head-sha>
+ *   codeblast check-change <repo> <base-sha> <head-sha> --json
  *   codeblast demo [repo]
  *
  * 运行时：node ≥ 22.13（node:sqlite）或 bun ≥ 1.0（bun:sqlite）。同一份源码，两种运行时。
@@ -22,6 +23,7 @@ const ROUTES: Record<string, () => Promise<unknown>> = {
   mermaid: () => import("./archmap"),
   cochange: () => import("./cochange"),
   "pr-comment": () => import("./pr-comment"),
+  "check-change": () => import("./check-change"),
   demo: () => import("./demo"),
   "name-modules": () => import("./name-modules"),
 };
@@ -42,6 +44,7 @@ usage: codeblast <command> [args]
   mermaid   <graph.db>                          module map as mermaid
   cochange  <repo> <graph.db>                   mine git history coupling
   pr-comment <repo> <base-sha> <head-sha>       PR review comment (silent if no change)
+  check-change <repo> <base-sha> <head-sha>     machine-readable merge safety decision
   demo      [repo]                              build + query + map in one shot
 
 docs: https://github.com/alloevil/codeblast · demos: https://alloevil.github.io/codeblast/`);
