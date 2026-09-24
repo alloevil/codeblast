@@ -158,6 +158,20 @@ authoring agent rated its own comments; both numbers and the fixes that followed
 - **You want cross-service / cross-repo edges, or Java.** The graph model reserves the node types, v1 does not fill those edges, and Java is explicitly not implemented ([intent.md](intent.md)).
 - **You want the PR bot to replace a reviewer.** It is a structural-change signal whose usefulness measured between 20% and 75% depending on the review round.
 
+
+### Unified change safety check
+
+For agents and CI that need one decision instead of composing `change` and `impact`, run:
+
+```bash
+codeblast check-change <repo> <base-sha> <head-sha> --json
+```
+
+The output contains `decision` (`safe-to-review`, `targeted-review`, or `review`), `risk`, reasons,
+recommended actions, structural facts, predicted affected-test count, blind-spot count, truncation,
+and the complete graph diff. It is a conservative routing decision, not a claim that the change is
+safe to merge. `review` is required when API surface contracts, removed symbols, or incomplete impact
+results are detected.
 ## For AI agents
 
 ```
@@ -179,6 +193,14 @@ Agent conventions: [AGENTS.md](AGENTS.md).
 **How do I drive it from an AI coding agent?** Install it as a skill with `npx skills add alloevil/codeblast`, then run `codeblast impact <db> "<symbol>" --json` before editing and `codeblast change <repo> HEAD~1 HEAD --json` after. [SKILL.md](SKILL.md) carries the interpretation rules that matter: never present the impact list as complete while `blind_spot_count > 0`, never drop the `file` channel to shorten it, never claim function-level precision on Python, treat `truncated: true` as "run the full suite", and never report `co_change_hints` as impact.
 
 **Where are the numbers I can check?** Machine-readable claims with metric, method, repro command and evidence path are published at [claims.json](https://alloevil.github.io/codeblast/claims.json); the raw mutation and PR-replay runs are archived under [`eval/`](eval/) as records of runs that were made (the harness writes to `/tmp`, so the files are manual copies with no commit or version pin, and `mutation_check.py` picks candidates with `ORDER BY RANDOM()` — read them as archived runs, not as one-command regenerations), and the acceptance log with every downgrade and rejected optimization is [intent.md](intent.md).
+
+### PR bot feedback
+
+Feedback is intentionally issue-based and privacy-safe. Report only the public PR URL, the affected
+decision category, and a redacted explanation. Do not include source code, secrets, proprietary diffs,
+or full repository contents. The useful labels are false positive, missed impact, noise, incorrect
+silence, or incorrect recommendation. Feedback is qualitative calibration data; it is not telemetry
+and codeblast does not require access to customer repositories.
 
 ## Status & roadmap
 

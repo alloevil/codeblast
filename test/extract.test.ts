@@ -129,6 +129,20 @@ describe("extract (integration-lite)", () => {
     expect(r.edges.find((e) => e.kind === "imports" && e.dst === "src/lib.ts")?.confidence).toBe("exact");
   });
 
+  test("literal package subpath import resolves to workspace source when package is unlinked", () => {
+    const subpath = path.join(root, "packages/core/src/subpath.ts");
+    fs.writeFileSync(subpath, "export const core = 1;\n");
+    const rootFile = path.join(root, "src", "package-user.ts");
+    fs.writeFileSync(rootFile, 'import { core } from "@ws/core/subpath"; export const use = core;\n');
+    const extractor = new Extractor(path.join(root, "tsconfig.json"), root);
+    const sf = extractor.sourceFiles().find((file) => extractor.rel(file.fileName) === "src/package-user.ts");
+    expect(sf).toBeDefined();
+    const result = extractor.extractFile(sf!);
+    expect(result.edges.find((edge) => edge.kind === "imports" && edge.dst === "packages/core/src/subpath.ts")).toBeDefined();
+    fs.rmSync(rootFile);
+    fs.rmSync(subpath);
+  });
+
   test("calls to closure-local non-function variables emit neither a dangling edge nor a blind spot; local arrow fns still resolve", () => {
     const r = byFile.get("src/lib.ts")!;
     const fromOuter = r.edges.filter((e) => e.kind === "calls" && e.src === "src/lib.ts#outer").map((e) => e.dst).sort();

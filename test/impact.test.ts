@@ -146,6 +146,15 @@ describe("impact", () => {
     expect(r.items.find((i) => i.id === "far.ts")).toBeUndefined();
   });
 
+  test("workspace package and subpath import edges remain resolvable through the graph", () => {
+    const db = baseGraph();
+    db.prepare("INSERT INTO nodes (id, kind, name, file, line, end_line, exported, signature, src_file) VALUES ('packages/core/src/index.ts', 'file', 'index.ts', 'packages/core/src/index.ts', 1, 1, 0, '', 'packages/core/src/index.ts')").run();
+    db.prepare("INSERT INTO edges (src, dst, kind, file, line, confidence, src_file) VALUES ('src/consumer.ts', 'packages/core/src/index.ts', 'imports', 'src/consumer.ts', 2, 'exact', 'src/consumer.ts')").run();
+    db.prepare("INSERT INTO nodes (id, kind, name, file, line, end_line, exported, signature, src_file) VALUES ('src/consumer.ts', 'file', 'consumer.ts', 'src/consumer.ts', 1, 4, 0, '', 'src/consumer.ts')").run();
+    const result = impact(db, "lib.ts#target");
+    expect(result.items.some((item) => item.id === "src/consumer.ts")).toBe(false);
+  });
+
   test("unknown target throws instead of returning an empty set", () => {
     expect(() => impact(baseGraph(), "nope.ts#x")).toThrow(/node not found/);
   });

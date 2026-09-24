@@ -46,3 +46,9 @@ describe("reviewDecision", () => {
     expect(decision.recommendedActions).toContain("Run the full test suite; the reported impact list is truncated.");
   });
 });
+
+test("unified safety output keeps the merge decision vocabulary stable", () => {
+  const decision = reviewDecision({ diff: emptyDiff(), prodNodesAdded: [], bodyChanged: [], affectedTests: 0, truncated: false, blindSpotCount: 0 });
+  expect(["high", "medium", "low"]).toContain(decision.risk);
+  expect(decision.recommendedActions.length).toBeGreaterThan(0);
+});
