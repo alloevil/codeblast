@@ -49,7 +49,7 @@ Built for humans (CLI / interactive HTML / PR comments) and for AI agents ([SKIL
 ```bash
 npx codeblast demo            # build a graph of the current repo, run one impact query, emit the map
 npm i -g codeblast            # or install globally; needs Node ≥ 22.13 (built-in sqlite) or Bun
-                              # npm serves 0.3.0; this checkout is 0.3.1 (unpublished)
+                              # npm serves 0.3.1
 
 # Install as an agent skill (Claude Code, Codex, Cursor, and 14 more harnesses)
 npx skills add alloevil/codeblast

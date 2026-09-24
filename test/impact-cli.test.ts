@@ -53,9 +53,13 @@ describe("impact --json (subprocess)", () => {
       });
       expect(p.status).toBe(0);
       expect(p.stdout.length).toBeGreaterThan(100_000);
-      const parsed = JSON.parse(p.stdout) as { target: string; items: unknown[] };
+      const parsed = JSON.parse(p.stdout) as { target: string; items: unknown[]; guidance: { review_first: string[]; run_tests: string[]; conservative: string[]; warnings: string[] } };
       expect(parsed.target).toBe("src/target.ts#target");
       expect(parsed.items).toHaveLength(600);
+      expect(parsed.guidance.review_first).toHaveLength(600);
+      expect(parsed.guidance.run_tests).toEqual([]);
+      expect(parsed.guidance.conservative).toEqual([]);
+      expect(parsed.guidance.warnings).toEqual([]);
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }

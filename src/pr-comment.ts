@@ -15,6 +15,7 @@ import { graphDiff, foldToModules } from "./graph-diff";
 import type { GraphDiff } from "./graph-diff";
 import { impact } from "./impact";
 import { AUX_RE, TEST_RE, bodySignalCount, coreNamedCount, structuralTotal, type BodyChange } from "./pr-silence";
+import { reviewDecision } from "./pr-decision";
 
 const args = process.argv.slice(2);
 const [repo, baseSha, headSha] = args;
@@ -170,6 +171,9 @@ if (diff.edgesAdded.length > 0) {
 // 影响半径 + 无测试覆盖警告
 const uncovered: string[] = [];
 const impactRows: string[] = [];
+let affectedTestCount = 0;
+let anyImpactTruncated = false;
+let totalBlindSpots = 0;
 // 测试文件内的符号（describe 回调里的字面量方法等）不属结构变更重点,更不该标"无覆盖"
 const prodNodesAdded = diff.nodesAdded.filter((n) => !TEST_RE.test(n.file));
 for (const n of prodNodesAdded.slice(0, 15)) {
@@ -178,6 +182,9 @@ for (const n of prodNodesAdded.slice(0, 15)) {
     // 只报 call 通道——文件级均值会给全新符号报出虚假的巨大半径（独立评审 3e0e979 案例）
     const callItems = r.items.filter((i) => i.channel === "call");
     const tests = callItems.filter((i) => i.level === "tests").length;
+    affectedTestCount += tests;
+    anyImpactTruncated ||= r.truncated;
+    totalBlindSpots += r.blind_spot_count;
     impactRows.push(`| \`${n.name}\` | ${n.kind} | ${callItems.length} | ${tests} | ${link(n.file, n.line)} |`);
     // 目标所在文件有盲区时,"无覆盖"可能是动态派发接不上（新增测试经回调覆盖）——降级为存疑
     const blind = r.blind_spot_count > 0;
@@ -229,6 +236,23 @@ if (bodyChanged.length > 0) {
 if (total === 0 && bodyChanged.length > 0) {
   lines[2] = `**无结构变更**,但有 ${bodyChanged.length} 个函数体内改动（见下）`;
 }
+const decision = reviewDecision({
+  diff,
+  prodNodesAdded,
+  bodyChanged,
+  affectedTests: affectedTestCount,
+  truncated: anyImpactTruncated,
+  blindSpotCount: totalBlindSpots,
+});
+lines.splice(3, 0,
+  `> **Review decision · ${decision.risk.toUpperCase()}** — ${decision.summary}`,
+  `> ${decision.reasons.join("; ")}.`,
+  ``,
+  `### Recommended checks`,
+  ``,
+  ...decision.recommendedActions.map((action) => `- ${action}`),
+  ``,
+);
 
 lines.push(`<sub>由 [codeblast](https://github.com/alloevil/codeblast) 生成 · 每条结论基于静态分析,含证据链接 · 动态调用盲区不在本报告内 · 评论不准?[30 秒反馈](https://github.com/alloevil/codeblast/issues/new?template=bot-feedback.yml&title=${encodeURIComponent(`[feedback] ${baseSha.slice(0, 7)}..${headSha.slice(0, 7)}`)})</sub>`);
 console.log(lines.join("\n"));

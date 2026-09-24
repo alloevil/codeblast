@@ -1,0 +1,15 @@
+{
+  "as_of": "2026-09-24",
+  "benchmark": "trpc/trpc",
+  "commit": "573d4f33ee2896c2bb7106203a936ae892d1ef1c",
+  "commit_date": "2026-09-12",
+  "mutants_requested": 5,
+  "killed_mutants": 3,
+  "impact_recall": "1/3",
+  "impact_recall_percent": 33,
+  "call_channel_recall": "0/3",
+  "call_channel_recall_percent": 0,
+  "interpretation": "Informational compatibility baseline. The pinned acceptance workflow remains the release gate; this modern commit is not a regression baseline for the pinned benchmark.",
+  "source_run": "https://github.com/alloevil/codeblast/actions/runs/35991045281",
+  "evidence": "The workflow log reports modern tRPC @ 573d4f3 2026-09-12, recall 1/3 = 33%, and call-channel recall 0/3 = 0%."
+}
