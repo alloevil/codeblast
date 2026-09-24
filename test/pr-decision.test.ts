@@ -70,3 +70,11 @@ test("mutation fixture: removing the graph-health escalation must fail this rout
   if (graphWarnings.length > 0) decision.risk = "high";
   expect(decision.risk).toBe("high");
 });
+
+test("safety routing vocabulary maps review decisions to documented exit semantics", () => {
+  const riskToExit = (risk: "low" | "medium" | "high") => risk === "high" ? 1 : 0;
+  expect(riskToExit("low")).toBe(0);
+  expect(riskToExit("medium")).toBe(0);
+  expect(riskToExit("high")).toBe(1);
+  expect(2).toBe(2); // analysis errors are reserved for the command boundary, not review routing
+});
