@@ -31,6 +31,25 @@ jobs:
       - run: bun run build
       - name: Node smoke (dist)
         run: node dist/bin.js index . --db /tmp/smoke.db && node dist/bin.js impact /tmp/smoke.db openDatabase --json > /dev/null
+      - name: Published-package smoke fixture
+        run: |
+          smoke=$(mktemp -d)
+          trap 'rm -rf "$smoke"' EXIT
+          cd "$smoke"
+          npm init -y >/dev/null 2>&1
+          npm install --ignore-scripts "codeblast@${GITHUB_REF_NAME#v}" >/dev/null 2>&1
+          ./node_modules/.bin/codeblast --help | grep -q 'check-change'
+          git init -q
+          git config user.email release@example.com
+          git config user.name release
+          printf '%s\n' '{"compilerOptions":{"module":"NodeNext","moduleResolution":"NodeNext","target":"ES2022"},"include":["src"]}' > tsconfig.json
+          mkdir src
+          printf '%s\n' 'export function api(x: string) { return x; }' > src/api.ts
+          git add . && git commit -qm base
+          printf '%s\n' 'export function api(x: string, y = 1) { return x + y; }' > src/api.ts
+          git add . && git commit -qm change
+          node_modules/.bin/codeblast check-change . HEAD~1 HEAD --json > result.json
+          node -e 'const d=require("./result.json"); if (!d.graph_health || !d.risk) process.exit(1)'
       - name: Check tag matches package.json
         run: |
           pkg="v$(node -p "require('./package.json').version")"

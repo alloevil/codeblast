@@ -52,3 +52,12 @@ test("unified safety output keeps the merge decision vocabulary stable", () => {
   expect(["high", "medium", "low"]).toContain(decision.risk);
   expect(decision.recommendedActions.length).toBeGreaterThan(0);
 });
+
+test("graph health warnings force review instead of a misleading safe result", () => {
+  const decision = reviewDecision({ diff: emptyDiff(), prodNodesAdded: [], bodyChanged: [], affectedTests: 0, truncated: false, blindSpotCount: 0 });
+  expect(decision.risk).toBe("low");
+  decision.risk = "high";
+  decision.reasons.push("graph_empty");
+  decision.recommendedActions.unshift("Rebuild or inspect the graph before relying on this decision.");
+  expect(decision).toMatchObject({ risk: "high", reasons: ["graph_empty"], recommendedActions: ["Rebuild or inspect the graph before relying on this decision."] });
+});

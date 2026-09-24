@@ -1,0 +1,26 @@
+{
+  "as_of": "2026-09-24",
+  "package": "codeblast@0.3.2",
+  "repository": "alloevil/codeblast",
+  "index": {
+    "files_indexed": 32,
+    "nodes": 178,
+    "edges": 921,
+    "blind_spots": 170,
+    "failures": 0
+  },
+  "impact_query": "reviewDecision",
+  "impact": {
+    "items": 6,
+    "target_blind_spots": 0,
+    "review_first": 2,
+    "test_files": 3,
+    "warnings": []
+  },
+  "next_changes": [
+    "Expose graph-health counts and failures in check-change so CI can reject incomplete indexes before risk classification.",
+    "Keep blind-spot totals distinct from target-file blind spots; the pilot had 170 repository-wide blind spots but 0 on the queried target.",
+    "Add a package-install smoke job to the release workflow so the published executable and check-change command are verified from a clean npm install."
+  ],
+  "interpretation": "The released package indexes a representative TypeScript/Python repository with zero extraction failures and produces separated review/test guidance. Repository-wide blind spots are expected analysis boundaries, not index failures."
+}
