@@ -1,0 +1,12 @@
+{
+  "as_of": "2026-09-24",
+  "fixture": "test/extract.test.ts",
+  "cases": [
+    {"name": "workspace package subpath", "expected": "exact-or-conservative-source-edge", "status": "covered"},
+    {"name": "tsconfig paths module mapping", "expected": "exact-source-edge", "status": "covered"},
+    {"name": "external package workspace re-entry", "expected": "conservative-source-edge", "status": "covered"},
+    {"name": "dynamic import non-literal", "expected": "blind-spot", "status": "explicit-boundary"},
+    {"name": "subprocess call", "expected": "blind-spot", "status": "explicit-boundary"}
+  ],
+  "policy": "Resolver enhancements must preserve recall gates; unresolved runtime behavior remains an explicit blind spot rather than an inferred edge."
+}

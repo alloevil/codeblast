@@ -39,7 +39,7 @@
     "prepack": "bun run build",
     "typecheck": "tsc -p .",
     "test": "bun test",
-    "demo": "bun src/bin.ts demo",
+    "agent-smoke": "bun run build && node eval/agent-workflow-smoke.mjs",
     "verify": "python3 eval/mutation_check.py"
   },
   "engines": {

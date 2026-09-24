@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/alloevil/codeblast/blob/main/eval/impact.schema.json",
+  "title": "codeblast impact JSON",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "target", "items", "truncated", "blind_spot_count", "co_change_hints", "guidance"],
+  "properties": {
+    "schema_version": {"const": "1"},
+    "target": {"type": "string"},
+    "truncated": {"type": "boolean"},
+    "blind_spot_count": {"type": "integer", "minimum": 0},
+    "items": {"type": "array", "items": {"type": "object"}},
+    "co_change_hints": {"type": "array", "items": {"type": "object"}},
+    "guidance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["review_first", "run_tests", "conservative", "warnings"],
+      "properties": {
+        "review_first": {"type": "array", "items": {"type": "string"}},
+        "run_tests": {"type": "array", "items": {"type": "string"}},
+        "conservative": {"type": "array", "items": {"type": "string"}},
+        "warnings": {"type": "array", "items": {"type": "string"}}
+      }
+    }
+  }
+}
