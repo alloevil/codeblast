@@ -32,7 +32,19 @@ buildGraphAt(baseSha, dbAPath);
 buildGraphAt(headSha, dbBPath);
 const dbA = openDatabase(dbAPath, { readonly: true });
 const dbB = openDatabase(dbBPath, { readonly: true });
+const graphHealth = (db: Database) => ({
+  files: Number((db.prepare("SELECT COUNT(*) c FROM files").get() as { c: number }).c),
+  nodes: Number((db.prepare("SELECT COUNT(*) c FROM nodes").get() as { c: number }).c),
+  edges: Number((db.prepare("SELECT COUNT(*) c FROM edges").get() as { c: number }).c),
+  blind_spots: Number((db.prepare("SELECT COUNT(*) c FROM blind_spots").get() as { c: number }).c),
+});
+const healthBase = graphHealth(dbA);
+const healthHead = graphHealth(dbB);
 const diff: GraphDiff = graphDiff(dbA, dbB);
+const healthWarnings = [
+  ...(healthHead.files === 0 || healthHead.nodes === 0 ? ["graph_empty"] : []),
+  ...(healthHead.nodes < healthBase.nodes / 2 ? ["graph_node_count_dropped_sharply"] : []),
+];
 const prodNodesAdded = diff.nodesAdded.filter((n) => !TEST_RE.test(n.file));
 const bodyChanged: BodyChange[] = [];
 const total = structuralTotal(diff);
@@ -52,6 +64,11 @@ const diffLineCount = spawnSync(["git", "diff", "--numstat", baseSha, headSha], 
   return sum + (match ? Number(match[1]) + Number(match[2]) : 0);
 }, 0);
 const decision = reviewDecision({ diff, prodNodesAdded, bodyChanged, affectedTests, truncated, blindSpotCount: blindSpots });
+if (healthWarnings.length > 0) {
+  decision.risk = "high";
+  decision.reasons.push(...healthWarnings);
+  decision.recommendedActions.unshift("Rebuild or inspect the graph before relying on this decision.");
+}
 const output = {
   range: `${baseSha}..${headSha}`,
   decision: decision.risk === "high" ? "review" : decision.risk === "medium" ? "targeted-review" : "safe-to-review",
@@ -62,6 +79,7 @@ const output = {
   structural_changes: total,
   affected_test_files: affectedTests,
   blind_spot_count: blindSpots,
+  graph_health: { base: healthBase, head: healthHead, warnings: healthWarnings },
   truncated,
   signals: {
     core_named: coreNamedCount(diff, prodNodesAdded),
