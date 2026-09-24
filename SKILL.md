@@ -67,6 +67,20 @@ The supported agent-facing artifacts are the two version-one JSON contracts and 
 `bun run agent-smoke` (or `node eval/agent-workflow-smoke.mjs` after building). A consumer integration
 should fail closed when the schema version is unknown, and should preserve the complete JSON artifact
 alongside its human summary for later review.
+
+Continuous evolution outputs:
+
+```bash
+bun run release-smoke          # package install and executable surface
+bun run agent-smoke            # end-to-end safety JSON contract
+bun run pilot-summary          # committed pilot graph/impact summary
+bun run guidance-stability     # deterministic guidance sample
+bun run validate-compatibility # compatibility sample boundary check
+```
+
+Each command should either produce a small machine-readable result or fail. Keep the result with the
+release or compatibility evidence; a green test suite without a current evidence sample is not a
+complete evolution cycle.
 tests. The graph health and warning fields are part of the contract.
 ## Interpretation rules — read before running
 

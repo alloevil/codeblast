@@ -41,6 +41,8 @@
     "agent-smoke": "bun run build && node eval/agent-workflow-smoke.mjs",
     "guidance-stability": "node eval/guidance-stability.mjs",
     "pilot-summary": "node eval/pilot-summary.mjs",
+    "release-smoke": "node eval/release-smoke.mjs",
+    "validate-compatibility": "node eval/validate-compatibility.mjs",
     "validate-safety": "node eval/validate-safety.mjs",
     "verify": "python3 eval/mutation_check.py"
   },

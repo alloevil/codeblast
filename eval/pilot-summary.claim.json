@@ -1,0 +1,14 @@
+{
+  "id": "published-pilot-summary",
+  "claim": "The published package pilot indexed the repository without extraction failures and produced separated review/test guidance.",
+  "value": "32 files, 178 nodes, 921 edges, 0 failures; 2 review-first, 3 test files",
+  "metric": "values in eval/pilot-2026-09-24.json",
+  "method": "The summary command reads the committed pilot artifact and rejects nonzero extraction failures.",
+  "check": {
+    "cmd": "node eval/pilot-summary.mjs",
+    "expect": {
+      "contains": ["\"failures\":0", "\"review_first\":2", "\"test_files\":3"]
+    },
+    "timeout": 60
+  }
+}

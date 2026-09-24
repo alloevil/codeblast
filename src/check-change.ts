@@ -19,6 +19,14 @@ const readVersion = (): string => {
   return "unknown";
 };
 const ENGINE_VERSION = readVersion();
+process.on("uncaughtException", (error) => {
+  console.error(`check-change analysis error: ${error instanceof Error ? error.message : error}`);
+  process.exitCode = EXIT_ERROR;
+});
+process.on("unhandledRejection", (reason) => {
+  console.error(`check-change analysis error: ${reason instanceof Error ? reason.message : reason}`);
+  process.exitCode = EXIT_ERROR;
+});
 
 const [repo, baseSha, headSha] = process.argv.slice(2);
 if (!repo || !baseSha || !headSha) {
@@ -60,7 +68,6 @@ const healthWarnings = [
   ...(healthHead.nodes < healthBase.nodes / 2 ? ["graph_node_count_dropped_sharply"] : []),
 ];
 const prodNodesAdded = diff.nodesAdded.filter((n) => !TEST_RE.test(n.file));
-const bodyChanged: BodyChange[] = [];
 const total = structuralTotal(diff);
 let affectedTests = 0;
 let truncated = false;
@@ -72,6 +79,17 @@ for (const node of [...diff.nodesAdded, ...diff.renamed.map((r) => ({ id: `${r.f
     truncated ||= result.truncated;
     blindSpots += result.blind_spot_count;
   } catch { /* module-level rename has no node to query */ }
+}
+const bodyChanged: BodyChange[] = [];
+const diffText = spawnSync(["git", "diff", "--unified=0", baseSha, headSha, "--", "*.ts", "*.tsx"], { cwd: repo }).stdout;
+let currentFile = "";
+for (const line of diffText.split("\n")) {
+  const file = line.match(/^\+\+\+ b\/(.+)$/);
+  if (file) { currentFile = file[1]; continue; }
+  const hunk = line.match(/^@@ -\d+(?:,\d+)? \+(\d+)/);
+  if (!hunk || !currentFile || TEST_RE.test(currentFile)) continue;
+  const row = dbB.prepare("SELECT id, name, kind, file, line FROM nodes WHERE file = ? AND kind IN ('function','method') AND line <= ? AND end_line >= ? ORDER BY (end_line - line) ASC LIMIT 1").get(currentFile, Number(hunk[1]), Number(hunk[1])) as BodyChange | null;
+  if (row && !bodyChanged.some((item) => item.id === row.id)) bodyChanged.push(row);
 }
 const diffLineCount = spawnSync(["git", "diff", "--numstat", baseSha, headSha], { cwd: repo }).stdout.split("\n").reduce((sum, line) => {
   const match = line.match(/^(\d+)\t(\d+)\t/);

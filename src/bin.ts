@@ -40,15 +40,13 @@ usage: codeblast <command> [args]
   archmap   <graph.db> --out arch.html          interactive architecture map
             [--impact <sym>] [--diff <base.db>]   ...with impact / change overlay
             [--repo-url <url>]                    names the page and its JSON-LD (already used above)
-            [--site-url <base>] [--og-image <u>]  canonical/og for the published page (optional)
-  mermaid   <graph.db>                          module map as mermaid
-  cochange  <repo> <graph.db>                   mine git history coupling
   pr-comment <repo> <base-sha> <head-sha>       PR review comment (silent if no change)
   check-change <repo> <base-sha> <head-sha>     machine-readable merge safety decision
   demo      [repo]                              build + query + map in one shot
 
 docs: https://github.com/alloevil/codeblast · demos: https://alloevil.github.io/codeblast/`);
-  process.exit(cmd && !ROUTES[cmd] ? 1 : 0);
+  process.exit(cmd === "--help" || cmd === "-h" || !cmd ? 0 : 1);
+
 }
 
 // 子命令脚本按 process.argv.slice(2) 取参：去掉子命令名，让它们看到自己的参数。
