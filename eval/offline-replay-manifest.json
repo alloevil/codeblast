@@ -6,7 +6,7 @@
     {"id":"docs-only","oracle":{"decision":"safe-to-review","comment":"silent"}},
     {"id":"signature-widening","oracle":{"decision":"targeted-review","comment":"emit","evidence_file":"src/api.ts"}},
     {"id":"visibility-contraction","oracle":{"decision":"review","comment":"emit","evidence_file":"src/api.ts"}},
-    {"id":"pure-rename","oracle":{"decision":"safe-to-review","comment":"emit","evidence_file":"src/api.ts"}},
+    {"id":"pure-rename","oracle":{"decision":"targeted-review","comment":"emit","evidence_file":"src/api.ts"}},
     {"id":"test-only","oracle":{"decision":"safe-to-review","comment":"silent"}},
     {"id":"aux-only","oracle":{"decision":"safe-to-review","comment":"silent"}},
     {"id":"blind-spot-target","oracle":{"decision":"targeted-review","comment":"emit","evidence_file":"src/tool.ts"}},

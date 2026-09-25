@@ -27,8 +27,9 @@ try {
       const repeated = run(["check-change", fixture.repo, fixture.base, fixture.head, "--json"], process.cwd());
       deterministic = repeated.stdout === safetyRun.stdout && repeated.status === safetyRun.status;
     }
-    const passed = safety.decision === sample.oracle.decision && emitted === (sample.oracle.comment === "emit") && evidenceValid && warningValid && deterministic;
-    results.push({ id: sample.id, expected_comment: sample.oracle.comment, decision: safety.decision, comment_emitted: emitted, evidence_valid: evidenceValid, warning_valid: warningValid, deterministic, passed });
+    const routingConsistent = safety.signals?.aux_only === true ? !emitted : (safety.decision !== "safe-to-review" ? emitted : (safety.structural_changes > 0 ? emitted : !emitted));
+    const passed = safety.decision === sample.oracle.decision && emitted === (sample.oracle.comment === "emit") && evidenceValid && warningValid && deterministic && routingConsistent;
+    results.push({ id: sample.id, expected_comment: sample.oracle.comment, decision: safety.decision, comment_emitted: emitted, evidence_valid: evidenceValid, warning_valid: warningValid, deterministic, routing_consistent: routingConsistent, passed });
   }
   const scorecard = {
     schema_version: "1",
