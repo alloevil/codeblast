@@ -135,6 +135,15 @@ export class Extractor {
     return path.relative(this.rootDir, fileName);
   }
 
+  private safeSymbolAt(node: ts.Node): ts.Symbol | undefined {
+    try { return this.checker.getSymbolAtLocation(node); } catch { return undefined; }
+  }
+
+  private safeAliased(symbol: ts.Symbol): ts.Symbol {
+    if (!(symbol.flags & ts.SymbolFlags.Alias)) return symbol;
+    try { return this.checker.getAliasedSymbol(symbol); } catch { return symbol; }
+  }
+
   /** 第一遍：全仓收集 implements/extends 关系，供保守全连查询。 */
   collectImplementers(): void {
     for (const sf of this.sourceFiles()) {
@@ -142,8 +151,8 @@ export class Extractor {
         if (ts.isClassDeclaration(node) && node.heritageClauses) {
           for (const clause of node.heritageClauses) {
             for (const typeNode of clause.types) {
-              let sym = this.checker.getSymbolAtLocation(typeNode.expression);
-              if (sym && sym.flags & ts.SymbolFlags.Alias) sym = this.checker.getAliasedSymbol(sym);
+              const raw = this.safeSymbolAt(typeNode.expression);
+              const sym = raw ? this.safeAliased(raw) : undefined;
               const decl = sym?.declarations?.[0];
               if (!decl) continue;
               const parentId = this.nodeIdOfDecl(decl);
@@ -321,8 +330,8 @@ export class Extractor {
           for (const clause of node.heritageClauses) {
             const ek = clause.token === ts.SyntaxKind.ImplementsKeyword ? "implements" : "extends";
             for (const t of clause.types) {
-              let sym = this.checker.getSymbolAtLocation(t.expression);
-              if (sym && sym.flags & ts.SymbolFlags.Alias) sym = this.checker.getAliasedSymbol(sym);
+              const raw = this.safeSymbolAt(t.expression);
+              const sym = raw ? this.safeAliased(raw) : undefined;
               const decl = sym?.declarations?.[0];
               const dst = decl ? this.nodeIdOfDecl(decl) : undefined;
               if (dst) edges.push({ src: id, dst, kind: ek, file: relPath, line: lineOf(clause), confidence: "exact", src_file: relPath });
@@ -384,8 +393,8 @@ export class Extractor {
     edges: EdgeRow[], blindSpots: BlindSpotRow[],
   ): void {
     const expr = call.expression;
-    let sym = this.checker.getSymbolAtLocation(expr);
-    if (sym && sym.flags & ts.SymbolFlags.Alias) sym = this.checker.getAliasedSymbol(sym);
+    const raw = this.safeSymbolAt(expr);
+    const sym = raw ? this.safeAliased(raw) : undefined;
     const decl = sym?.valueDeclaration ?? sym?.declarations?.[0];
 
     if (!decl) {
