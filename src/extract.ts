@@ -345,17 +345,19 @@ export class Extractor {
       // 调用表达式 → calls 边
       if (ts.isCallExpression(node) || ts.isNewExpression(node)) {
         const caller = [...enclosing].reverse().find(Boolean) ?? relPath;
-        // 动态 import()：字面量 → imports 边；变量 → 盲区
-        if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
+        if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === "glob" && node.expression.expression.getText(sf) === "import.meta") {
+          const arg = node.arguments[0];
+          if (arg && ts.isStringLiteral(arg)) {
+            const matches = this.expandGlob(arg.text, sf.fileName);
+            for (const match of matches) edges.push({ src: relPath, dst: this.rel(match), kind: "imports", file: relPath, line: lineOf(node), confidence: "conservative", src_file: relPath });
+          } else {
+            blindSpots.push({ file: relPath, line: lineOf(node), reason: `dynamic import.meta.glob: ${(arg?.getText() ?? "").slice(0, 80)}`, src_file: relPath });
+          }
+        } else if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
           const arg = node.arguments[0];
           if (arg && ts.isStringLiteral(arg)) {
             const resolved = this.resolveModule(arg.text, sf.fileName);
-            if (resolved) {
-              edges.push({
-                src: relPath, dst: this.rel(resolved), kind: "imports",
-                file: relPath, line: lineOf(node), confidence: "exact", src_file: relPath,
-              });
-            }
+            if (resolved) edges.push({ src: relPath, dst: this.rel(resolved), kind: "imports", file: relPath, line: lineOf(node), confidence: "exact", src_file: relPath });
           } else {
             blindSpots.push({ file: relPath, line: lineOf(node), reason: `dynamic import: ${(arg?.getText() ?? "").slice(0, 80)}`, src_file: relPath });
           }
@@ -555,5 +557,24 @@ export class Extractor {
 
   private isExported(node: ts.Node): boolean {
     return (ts.getCombinedModifierFlags(node as ts.Declaration) & ts.ModifierFlags.Export) !== 0;
+  }
+
+  private expandGlob(pattern: string, fromFile: string): string[] {
+    if (!pattern.startsWith(".")) return [];
+    const base = path.resolve(path.dirname(fromFile), pattern.split("*")[0]);
+    if (!fs.existsSync(base)) return [];
+    const rawSuffix = pattern.slice(pattern.indexOf("*"));
+    const suffix = rawSuffix.split("**").map((part) => part.split("*").map((piece) => piece.replace(/[.+?^${}()|[\]\\]/g, "\\$&")).join("[^/]*")).join(".*");
+    const re = new RegExp(`^${suffix}$`);
+    const out: string[] = [];
+    const walk = (dir: string) => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const file = path.join(dir, entry.name);
+        if (entry.isDirectory()) walk(file);
+        else if (re.test(path.relative(base, file).replaceAll(path.sep, "/"))) out.push(file);
+      }
+    };
+    walk(base);
+    return out;
   }
 }
