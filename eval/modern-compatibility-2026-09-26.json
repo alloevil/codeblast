@@ -1,0 +1,17 @@
+{
+  "as_of": "2026-09-26",
+  "repository": "trpc/trpc",
+  "commit": "573d4f33ee2896c2bb7106203a936ae892d1ef1c",
+  "runner": "vitest",
+  "index": {"files": 968, "nodes": 6340, "edges": 17775, "blind_spots": 7255, "failures": 0},
+  "mutation_sample": 3,
+  "killed": 3,
+  "recall": "3/3 = 100%",
+  "mean_precision": 0.067,
+  "call_channel_recall": "1/3 = 33%",
+  "call_channel_mean_precision": 0.487,
+  "baseline_failures_excluded": 47,
+  "change": "Literal import.meta.glob patterns now expand to conservative imports for matching fixture files.",
+  "impact": "The three-mutant sample improved from the corrected pre-glob 2/3 recall to 3/3. This is a bounded compatibility signal, not a release gate or universal recall claim.",
+  "next_action": "Repeat under a reproducible dependency cache before changing release policy."
+}

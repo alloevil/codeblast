@@ -218,25 +218,30 @@ if (tsconfigs.length > 0 && orphans.length > 0) {
 // Python 摄取（方案 B：高置信边 only，Impact 仅文件级）
 const pyProbe = spawnSync(["python3", path.join(import.meta.dirname, "py_extract.py"), repoRoot]);
 if (pyProbe.exitCode === 0) {
-  const payload = JSON.parse(pyProbe.stdout) as {
-    files: { path: string; hash: string; nodes: NodeRow[]; edges: EdgeRow[]; blind_spots: BlindSpotRow[] }[];
-  };
-  for (const f of payload.files) {
-    if (seenFiles.has(f.path)) continue;
-    seenFiles.add(f.path);
-    const existing = getHash.get(f.path) as { hash: string } | null;
-    if (existing?.hash === f.hash && f.hash !== "") {
-      skipped++;
-      continue;
+  try {
+    const payload = JSON.parse(pyProbe.stdout) as {
+      files: { path: string; hash: string; nodes: NodeRow[]; edges: EdgeRow[]; blind_spots: BlindSpotRow[] }[];
+    };
+    for (const f of payload.files) {
+      if (seenFiles.has(f.path)) continue;
+      seenFiles.add(f.path);
+      const existing = getHash.get(f.path) as { hash: string } | null;
+      if (existing?.hash === f.hash && f.hash !== "") { skipped++; continue; }
+      writeBatch(f.path, f.hash, f.nodes, f.edges, f.blind_spots);
+      indexed++;
+      nodeCount += f.nodes.length;
+      edgeCount += f.edges.length;
+      blindCount += f.blind_spots.length;
     }
-    writeBatch(f.path, f.hash, f.nodes, f.edges, f.blind_spots);
-    indexed++;
-    nodeCount += f.nodes.length;
-    edgeCount += f.edges.length;
-    blindCount += f.blind_spots.length;
+    const pyFiles = payload.files.length;
+    if (pyFiles > 0) console.error(`python files ingested: ${pyFiles}`);
+  } catch (err) {
+    failures++;
+    console.error(`PYTHON INGEST FAILED: ${err instanceof Error ? err.message : err}`);
   }
-  const pyFiles = payload.files.length;
-  if (pyFiles > 0) console.error(`python files ingested: ${pyFiles}`);
+} else {
+  failures++;
+  console.error(`PYTHON INGEST FAILED: ${pyProbe.stderr.slice(0, 1000)}`);
 }
 
 // A complete scan defines the repository's current file set. Remove rows derived from files that were

@@ -169,6 +169,21 @@ describe("extract (integration-lite)", () => {
     fs.rmSync(user);
   });
 
+  test("literal import.meta.glob emits conservative imports for matching fixture files", () => {
+    const dir = path.join(root, "src", "glob-fixtures");
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, "one.ts"), "export const one = 1;\n");
+    const user = path.join(root, "src", "glob-user.ts");
+    fs.writeFileSync(user, 'const modules = import.meta.glob("./glob-fixtures/*.ts"); export const count = modules;\n');
+    const extractor = new Extractor(path.join(root, "tsconfig.json"), root);
+    const source = extractor.sourceFiles().find((file) => extractor.rel(file.fileName) === "src/glob-user.ts");
+    expect(source).toBeDefined();
+    const result = extractor.extractFile(source!);
+    expect(result.edges.some((edge) => edge.kind === "imports" && edge.dst === "src/glob-fixtures/one.ts" && edge.confidence === "conservative")).toBe(true);
+    fs.rmSync(user);
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
   test("literal package subpath import resolves to workspace source when package is unlinked", () => {
     const subpath = path.join(root, "packages/core/src/subpath.ts");
     fs.writeFileSync(subpath, "export const core = 1;\n");
