@@ -1,0 +1,17 @@
+{
+  "as_of": "2026-09-25",
+  "package": "codeblast@0.3.2",
+  "selection": "Active public TypeScript repositories with more than 100k GitHub stars, chosen for scale and distinct workspace layouts.",
+  "projects": [
+    {"repository":"n8n-io/n8n","stars_at_selection":205887,"commit":"44471d1c94c51bd1ab4c4d301164d24cbe6b034d","files":21509,"nodes":105966,"edges":522576,"blind_spots":848275,"failures":0,"seconds":293.4,"status":"graph-complete"},
+    {"repository":"excalidraw/excalidraw","stars_at_selection":132824,"commit":"5db42c3ddbbdc44d10120ab2f18e0864d083e268","files":656,"nodes":5272,"edges":32875,"blind_spots":22236,"failures":2,"seconds":16.4,"status":"graph-incomplete","failure_class":"TypeScript resolveExternalModule Debug Failure in examples/with-script-in-browser/utils.ts"},
+    {"repository":"anomalyco/opencode","stars_at_selection":209889,"commit":"6df0d5d951e0bb8c82dd1a7f9315eff4efd7f1ef","files":3349,"nodes":27169,"edges":86461,"blind_spots":113765,"failures":2,"seconds":62.5,"status":"graph-incomplete","failure_class":"TypeScript resolveExternalModule Debug Failure in packages/cli/src/tui.ts and packages/opencode/src/cli/tui/layer.ts"}
+  ],
+  "fix_attempt": {
+    "change": "Guarded module and external-reentry resolution, added failure stack traces, and added a missing-module regression fixture.",
+    "local_tests": "77 tests passed; tsc passed",
+    "result": "The same TypeScript Debug Failure remains in the two star-project patterns; the guard reduces some blind-spot counts but does not yet make these graphs complete. Do not claim this as fixed."
+  },
+  "interpretation": "The published package handled the 21.5k-file n8n repository with zero extraction failures. Excalidraw and OpenCode expose a shared TypeScript resolver crash path that remains the next highest-value compatibility target.",
+  "next_action": "Capture the full stack after the diagnostic expansion, isolate the TypeScript resolver input, then add a safe resolver fallback that preserves explicit blind spots without hiding graph incompleteness."
+}

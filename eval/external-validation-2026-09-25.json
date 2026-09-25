@@ -1,0 +1,22 @@
+{
+  "as_of": "2026-09-25",
+  "package": "codeblast@0.3.2",
+  "projects": [
+    {
+      "repository": "vitejs/vite",
+      "commit": "39ddf7ccf7e7469ff6a3ba37bca38c32ea804d6e",
+      "index": {"files": 723, "nodes": 3809, "edges": 10710, "blind_spots": 16504, "failures": 0, "seconds": 11.2},
+      "change_window": "931ad65735d73e7a765baec59a69501109d50f61..39ddf7ccf7e7469ff6a3ba37bca38c32ea804d6e",
+      "change": {"decision": "safe-to-review", "risk": "low", "structural_changes": 0, "affected_test_files": 0, "blind_spot_count": 0, "warnings": "not emitted by the older published check-change binary"}
+    },
+    {
+      "repository": "vitest-dev/vitest",
+      "commit": "4e91e56687de43427bb664d86a63438ca73b681",
+      "index": {"files": 2042, "nodes": 7908, "edges": 35370, "blind_spots": 14971, "failures": 0, "seconds": 31.9},
+      "change_window": "parent..4e91e56687de43427bb664d86a63438ca73b681",
+      "change": {"decision": "safe-to-review", "risk": "low", "structural_changes": 0, "affected_test_files": 0, "blind_spot_count": 0, "warnings": "not emitted by the older published check-change binary"}
+    }
+  ],
+  "interpretation": "The published package indexed both external TypeScript projects with zero extraction failures. The current shallow clone windows produced no structural diff, so these pilots validate install/index operation and graph health, not reviewer usefulness or recall. The output also exposed that the published package predates later graph_health fields, which is a release/version observation rather than an external project failure.",
+  "next_action": "Run check-change from the current main build against nontrivial public PR windows, then publish the first external reviewer case study."
+}
