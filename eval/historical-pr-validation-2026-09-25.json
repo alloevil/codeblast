@@ -1,0 +1,37 @@
+{
+  "as_of": "2026-09-25",
+  "engine": "current main build",
+  "cases": [
+    {
+      "repository": "excalidraw/excalidraw",
+      "pr": 12124,
+      "title": "support onDuplicate replacements, vetoes and lookups",
+      "base": "c0ad61c6743aef7623e641cd1460d757cc6cacf3",
+      "head": "369ab335f35dbc4d9b2ca06e55e25def13ad2ece",
+      "actual": {"files":6,"additions":1118,"deletions":38,"includes_tests":true,"public_api_change":true},
+      "safety": {"decision":"targeted-review","risk":"medium","structural_changes":67,"affected_test_files":388,"blind_spot_count":327},
+      "comment": {"emitted":true,"classification":"useful","basis":"named new dependencies, body changes, affected tests and file:line evidence align with the PR"}
+    },
+    {
+      "repository": "anomalyco/opencode",
+      "pr": 51207,
+      "title": "accept 128-character tool names",
+      "base": "a16eedfed76f6ae500417346de40e496e525bc36",
+      "head": "d7769896dd97e7fe7e308d81cda5e231e4ad7d3d",
+      "actual": {"files":3,"additions":25,"deletions":4,"includes_tests":true,"behavior_change":"tool name validation 64 to 128"},
+      "safety": {"decision":"targeted-review","risk":"medium","structural_changes":0,"affected_test_files":0,"reason":"1 function body changed"},
+      "comment": {"emitted_before_fix":false,"emitted_after_fix":true,"classification":"useful-after-fix","basis":"core behavior and tests changed together; fixed comment identifies registrationError at packages/core/src/tool.ts:304"}
+    },
+    {
+      "repository": "n8n-io/n8n",
+      "pr": 39483,
+      "title": "Support Buffer bodies in Engine 2.0 sendResponse",
+      "base": "e648610eae8c182e507681029202798fe41e3423",
+      "head": "71c5389c5927bb6e5e8aeb399eaaeca78025bfe3",
+      "actual": {"observed_files":101,"note":"The fetched base/head window contains unrelated changes and is unsuitable as isolated PR ground truth."},
+      "safety": {"decision":"review","risk":"high","structural_changes":412,"affected_test_files":90},
+      "comment": {"emitted":true,"classification":"excluded-window-contamination"}
+    }
+  ],
+  "conclusion": "Historical PR replay can validate deterministic behavior and expose presentation misses. It cannot substitute for maintainer feedback. The highest-value fix is to prevent silence when a production function body changes and the same PR changes tests."
+}
