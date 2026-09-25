@@ -37,10 +37,12 @@ export function bodySignalCount(
   return n;
 }
 
-/** 具名结构变化按核心区计数——辅助区新组件/依赖边（4217a73: www 106 行）无评审价值。 */
+/** Core structural changes count in both directions; removals and removed dependencies must not be silent. */
 export function coreNamedCount(diff: GraphDiff, prodNodesAdded: readonly NodeDelta[]): number {
   return diff.edgesAdded.filter((e) => !AUX_RE.test(e.file)).length
+    + diff.edgesRemoved.filter((e) => !AUX_RE.test(e.file)).length
     + prodNodesAdded.filter((n) => !AUX_RE.test(n.file)).length
+    + diff.nodesRemoved.filter((n) => !AUX_RE.test(n.file) && !TEST_RE.test(n.file)).length
     + diff.renamed.filter((r) => !AUX_RE.test(r.file)).length
     + diff.visibilityChanged.filter((v) => !AUX_RE.test(v.file)).length
     + diff.signatureChanged.filter((s) => !AUX_RE.test(s.file)).length;

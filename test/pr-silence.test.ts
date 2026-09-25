@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import fs from "node:fs";
 import { AUX_RE, BIG_DIFF_LINES, TEST_RE, bodySignalCount, coreNamedCount, structuralTotal, type BodyChange } from "../src/pr-silence";
 import type { GraphDiff } from "../src/graph-diff";
 
@@ -53,6 +54,18 @@ describe("pr-silence", () => {
     d.visibilityChanged.push({ id: "src/v#g", name: "g", kind: "function", file: "src/v.ts", line: 1, nowExported: true });
     const prodNodesAdded = d.nodesAdded.concat([{ id: "examples/e#n", kind: "function", name: "n", file: "examples/e.ts", line: 1 }]);
     expect(coreNamedCount(d, prodNodesAdded)).toBe(2); // src edge + src visibility
+  });
+
+  test("core removals and removed dependencies prevent incorrect silence", () => {
+    const d = emptyDiff();
+    d.nodesRemoved.push({ id: "src/api.ts#removed", kind: "function", name: "removed", file: "src/api.ts", line: 2 });
+    d.edgesRemoved.push({ src: "src/caller.ts#call", dst: "src/api.ts#removed", kind: "calls", file: "src/caller.ts", line: 4 });
+    expect(coreNamedCount(d, [])).toBe(2);
+  });
+
+  test("offline replay manifest covers behavior, destructive API, and noise-control categories", () => {
+    const manifest = JSON.parse(fs.readFileSync("eval/offline-replay-manifest.json", "utf8")) as { samples: { id: string }[] };
+    expect(manifest.samples.map((sample) => sample.id).sort()).toEqual(["docs-only", "public-api-removal", "tested-behavior-change"]);
   });
 });
 
