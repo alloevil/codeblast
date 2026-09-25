@@ -214,7 +214,10 @@ const bodySignal = bodySignalCount(bodyChanged, diffLineCount, (fn) => {
   } catch { return false; /* 节点缺失跳过 */ }
 });
 const coreNamed = coreNamedCount(diff, prodNodesAdded);
-if (coreNamed + bodySignal === 0) process.exit(0);
+const changedFiles = spawnSync(["git", "diff", "--name-only", baseSha, headSha], { cwd: repo }).stdout.split("\n").filter(Boolean);
+const changedTests = changedFiles.some((file) => TEST_RE.test(file));
+const testedBodySignal = bodyChanged.length > 0 && changedTests ? 1 : 0;
+if (coreNamed + bodySignal + testedBodySignal === 0) process.exit(0);
 // 函数体内改动：结构不变但行为可能变——按既有函数的调用链影响排序,评审重点
 if (bodyChanged.length > 0) {
   const rows: string[] = [];

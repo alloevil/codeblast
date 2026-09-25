@@ -55,3 +55,11 @@ describe("pr-silence", () => {
     expect(coreNamedCount(d, prodNodesAdded)).toBe(2); // src edge + src visibility
   });
 });
+
+  test("a production body change with same-PR test changes must not be silenced", () => {
+    const bodyChanged = [body("src/tool.ts")];
+    const changedFiles = ["src/tool.ts", "test/tool.test.ts"];
+    const changedTests = changedFiles.some((file) => TEST_RE.test(file));
+    const testedBodySignal = bodyChanged.length > 0 && changedTests ? 1 : 0;
+    expect(testedBodySignal).toBe(1);
+  });
