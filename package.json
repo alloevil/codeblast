@@ -40,6 +40,7 @@
     "typecheck": "tsc -p .",
     "agent-smoke": "bun run build && node eval/agent-workflow-smoke.mjs",
     "guidance-stability": "node eval/guidance-stability.mjs",
+    "offline-replay": "bun run build && node eval/offline-replay.mjs",
     "pilot-summary": "node eval/pilot-summary.mjs",
     "release-smoke": "node eval/release-smoke.mjs",
     "validate-compatibility": "node eval/validate-compatibility.mjs",
