@@ -1,0 +1,10 @@
+{
+  "as_of": "2026-09-25",
+  "release": {"npm_version": "0.3.3", "contract_surface": "passed", "release_workflow": "passed"},
+  "offline_replay": {"samples": 11, "passed": 11, "incorrect_silence": 0, "invalid_evidence": 0, "nondeterministic": 0},
+  "incremental": {"nodes_equal": true, "edges_equal": true, "blind_spots_equal": true, "stale_removed": true, "files_skipped": 30},
+  "star_graphs": {"n8n_failures": 0, "excalidraw_failures": 0, "opencode_failures": 0},
+  "mutation": {"pinned_trpc_recall": "28/28", "pinned_graphql_tools_recall": "10/10", "external_star_smoke": "not-run; dependencies unavailable offline"},
+  "local_regression": {"tests": 80, "typecheck": "passed", "claims_machine_checks": "8/8"},
+  "limits": ["No external maintainer usefulness rating", "No external star-project mutation recall without dependencies", "Modern tRPC recorded recall remains informational until rerun with corrected flake filtering"]
+}

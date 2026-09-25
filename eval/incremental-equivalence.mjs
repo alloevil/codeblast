@@ -28,7 +28,8 @@ try {
   fs.writeFileSync(path.join(root, "src/b.ts"), 'import { a } from "./a"; export function b() { return a(); }\n');
   const initial = runIndex(incrementalDb);
   fs.writeFileSync(path.join(root, "src/a.ts"), "export function a() { return 2; }\nexport function added() { return 3; }\n");
-  fs.rmSync(path.join(root, "src/b.ts"));
+  fs.renameSync(path.join(root, "src/b.ts"), path.join(root, "src/renamed.ts"));
+  fs.writeFileSync(path.join(root, "src/renamed.ts"), 'import { added } from "./a"; export function renamed() { return added(); }\n');
   fs.writeFileSync(path.join(root, "src/c.ts"), 'import { added } from "./a"; export function c() { return added(); }\n');
   const incremental = runIndex(incrementalDb);
   const fresh = runIndex(fullDb);

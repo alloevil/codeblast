@@ -1,0 +1,11 @@
+{
+  "as_of": "2026-09-25",
+  "external_mutation_smoke": {
+    "status": "not-run",
+    "reason": "Selected star checkouts have no installed test dependencies; running their suites would require network-dependent setup and would not be a reproducible offline gate.",
+    "oracle": "offline replay fixtures are the deterministic mutation-like safety oracle"
+  },
+  "offline_replay": {"samples": 11, "passed": 11, "failed": 0, "incorrect_silence": 0, "invalid_evidence": 0, "nondeterministic": 0},
+  "existing_real_mutation_gates": {"trpc": "28/28", "graphql_tools": "10/10"},
+  "boundary": "The existing real mutation figures remain pinned benchmark evidence. The offline matrix proves safety-routing regressions, not application test recall."
+}
