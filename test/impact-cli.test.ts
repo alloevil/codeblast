@@ -113,3 +113,11 @@ test("formal JSON schemas are committed with version-one contracts", () => {
   expect(impactSchema.properties.schema_version.const).toBe("1");
   expect(changeSchema.properties.schema_version.const).toBe("1");
 });
+
+test("modern compatibility scorecard and matrix agree on bounded recall", () => {
+  const scorecard = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, "..", "eval", "evidence-scorecard-2026-09-26.json"), "utf8")) as { modern_tRPC: { recall: string; status: string } };
+  const matrix = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, "..", "eval", "compatibility-matrix-2026-09-24.json"), "utf8")) as { rows: { track: string; recall: string; status: string }[] };
+  const modern = matrix.rows.find((row) => row.track === "modern-compatibility");
+  expect(modern).toEqual(expect.objectContaining({ recall: scorecard.modern_tRPC.recall, status: "informational" }));
+  expect(scorecard.modern_tRPC.status).toBe("informational");
+});
