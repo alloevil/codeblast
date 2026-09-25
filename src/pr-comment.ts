@@ -120,7 +120,9 @@ if (folded.size > 1) {
 if (diff.renamed.length > 0) {
   lines.push(`### 重命名`, ``);
   for (const r of diff.renamed.slice(0, 10)) {
-    lines.push(`- \`${r.from}\` → \`${r.to}\` (${r.kind})`);
+    const targetName = r.to.includes("#") ? r.to.split("#").pop()! : r.to;
+    const target = dbB.prepare("SELECT line FROM nodes WHERE file = ? AND name = ? ORDER BY line LIMIT 1").get(r.file, targetName) as { line: number } | null;
+    lines.push(`- \`${r.from}\` → \`${r.to}\` (${r.kind})${target ? ` （${link(r.file, target.line)}）` : ""}`);
   }
   if (diff.renamed.length > 10) lines.push(`- …及另外 ${diff.renamed.length - 10} 项`);
   lines.push(``);

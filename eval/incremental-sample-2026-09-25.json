@@ -1,0 +1,15 @@
+{
+  "as_of": "2026-09-25",
+  "fixture": "30 unchanged files, one modified file, one deleted file, one added file",
+  "initial_ms": 1320,
+  "incremental_ms": 975,
+  "fresh_ms": 1289,
+  "observed_speedup": 1.32,
+  "files_indexed": 2,
+  "files_skipped": 30,
+  "nodes_equal": true,
+  "edges_equal": true,
+  "blind_spots_equal": true,
+  "stale_removed": true,
+  "policy": "Equality and stale-row removal are gates. Timing is recorded but not gated because shared-runner noise can invert small timing differences."
+}

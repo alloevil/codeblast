@@ -3,7 +3,7 @@
   "tool_version": "0.3.2",
   "rows": [
     {"repository":"trpc/trpc","track":"pinned-release-gate","commit":"4f5315219f947589c9ef0f67b7aa551243312d61","runner":"vitest","recall":"100%","status":"release-gate"},
-    {"repository":"trpc/trpc","track":"modern-compatibility","commit":"573d4f33ee2896c2bb7106203a936ae892d1ef1c","runner":"vitest","recall":"1/3 = 33%","call_channel_recall":"0/3 = 0%","status":"informational"},
+    {"repository":"trpc/trpc","track":"modern-compatibility","commit":"573d4f33ee2896c2bb7106203a936ae892d1ef1c","runner":"vitest","recall":"1/3 = 33%","call_channel_recall":"0/3 = 0%","status":"informational","diagnosis":"Both apparent full-channel misses were the same unrelated packages/upgrade/test/transforms.test.ts failure. It has no import path to either mutated client/server target and likely fails only under full-suite load. The harness now rechecks suspect files on restored source under full-suite load before counting a miss; a full modern rerun remains required before changing the recorded recall."},
     {"repository":"ardatan/graphql-tools","track":"pinned-release-gate","commit":"2a3763f514d986074e5a2bcd4d4a41274b1bda96","runner":"jest","recall":"100%","status":"release-gate"}
   ],
   "resolver_fixture_coverage": "workspace package subpaths, tsconfig paths, external package re-entry, dynamic import and subprocess boundaries are recorded in eval/resolver-boundaries-2026-09-24.json",

@@ -21,15 +21,15 @@ permissions:
 
 jobs:
   selftest:
-    name: alloevil/codeblast@v0.3.1
+    name: alloevil/codeblast@v0.3.3
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
       - id: codeblast
-        uses: alloevil/codeblast@v0.3.1
+        uses: alloevil/codeblast@v0.3.3
         with:
           base: ${{ inputs.base }}
           head: ${{ inputs.head }}

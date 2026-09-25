@@ -21,16 +21,23 @@ try {
     const emitted = commentRun.stdout.trim().length > 0;
     const fileSet = new Set(runGit(fixture.repo, ["diff", "--name-only", fixture.base, fixture.head]).split("\n").filter(Boolean));
     const evidenceValid = sample.oracle.evidence_file ? fileSet.has(sample.oracle.evidence_file) && commentRun.stdout.includes(sample.oracle.evidence_file) : true;
-    const passed = safety.decision === sample.oracle.decision && emitted === (sample.oracle.comment === "emit") && evidenceValid;
-    results.push({ id: sample.id, decision: safety.decision, comment_emitted: emitted, evidence_valid: evidenceValid, passed });
+    const warningValid = sample.oracle.graph_warning ? safety.graph_health?.warnings?.includes(sample.oracle.graph_warning) === true : true;
+    let deterministic = true;
+    if (sample.oracle.repeat_identical) {
+      const repeated = run(["check-change", fixture.repo, fixture.base, fixture.head, "--json"], process.cwd());
+      deterministic = repeated.stdout === safetyRun.stdout && repeated.status === safetyRun.status;
+    }
+    const passed = safety.decision === sample.oracle.decision && emitted === (sample.oracle.comment === "emit") && evidenceValid && warningValid && deterministic;
+    results.push({ id: sample.id, expected_comment: sample.oracle.comment, decision: safety.decision, comment_emitted: emitted, evidence_valid: evidenceValid, warning_valid: warningValid, deterministic, passed });
   }
   const scorecard = {
     schema_version: "1",
     samples: results.length,
     passed: results.filter((x) => x.passed).length,
     failed: results.filter((x) => !x.passed).length,
-    incorrect_silence: results.filter((x) => !x.comment_emitted && x.id !== "docs-only").length,
+    incorrect_silence: results.filter((x) => x.expected_comment === "emit" && !x.comment_emitted).length,
     invalid_evidence: results.filter((x) => !x.evidence_valid).length,
+    nondeterministic: results.filter((x) => !x.deterministic).length,
     results,
   };
   process.stdout.write(JSON.stringify(scorecard) + "\n");

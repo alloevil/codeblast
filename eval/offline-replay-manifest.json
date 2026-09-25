@@ -1,23 +1,16 @@
 {
   "schema_version": "1",
   "samples": [
-    {
-      "id": "tested-behavior-change",
-      "category": "historical-pattern:opencode-51207",
-      "mutation": "increase a production validation limit and update tests",
-      "oracle": {"decision": "targeted-review", "comment": "emit", "evidence_file": "src/tool.ts", "requires_test_change": true}
-    },
-    {
-      "id": "public-api-removal",
-      "category": "api-contraction",
-      "mutation": "remove one exported function",
-      "oracle": {"decision": "review", "comment": "emit", "evidence_file": "src/api.ts"}
-    },
-    {
-      "id": "docs-only",
-      "category": "noise-control",
-      "mutation": "change documentation only",
-      "oracle": {"decision": "safe-to-review", "comment": "silent"}
-    }
+    {"id":"tested-behavior-change","oracle":{"decision":"targeted-review","comment":"emit","evidence_file":"src/tool.ts"}},
+    {"id":"public-api-removal","oracle":{"decision":"review","comment":"emit","evidence_file":"src/api.ts"}},
+    {"id":"docs-only","oracle":{"decision":"safe-to-review","comment":"silent"}},
+    {"id":"signature-widening","oracle":{"decision":"targeted-review","comment":"emit","evidence_file":"src/api.ts"}},
+    {"id":"visibility-contraction","oracle":{"decision":"review","comment":"emit","evidence_file":"src/api.ts"}},
+    {"id":"pure-rename","oracle":{"decision":"safe-to-review","comment":"emit","evidence_file":"src/api.ts"}},
+    {"id":"test-only","oracle":{"decision":"safe-to-review","comment":"silent"}},
+    {"id":"aux-only","oracle":{"decision":"safe-to-review","comment":"silent"}},
+    {"id":"blind-spot-target","oracle":{"decision":"targeted-review","comment":"emit","evidence_file":"src/tool.ts"}},
+    {"id":"tested-behavior-repeat","oracle":{"decision":"targeted-review","comment":"emit","evidence_file":"src/tool.ts","repeat_identical":true}},
+    {"id":"graph-node-drop","oracle":{"decision":"review","comment":"emit","evidence_file":"src/api.ts","graph_warning":"graph_node_count_dropped_sharply"}}
   ]
 }
