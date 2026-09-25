@@ -1,0 +1,18 @@
+{
+  "as_of": "2026-09-25",
+  "repository": "trpc/trpc",
+  "commit": "573d4f33ee2896c2bb7106203a936ae892d1ef1c",
+  "runner": "vitest",
+  "index": {"files": 968, "nodes": 6340, "edges": 17739, "blind_spots": 7257, "failures": 0},
+  "mutants": 3,
+  "killed": 3,
+  "recall": "2/3 = 67%",
+  "mean_precision": 0.182,
+  "call_channel_recall": "2/3 = 67%",
+  "call_channel_mean_precision": 0.479,
+  "baseline_failures_excluded": 1,
+  "ground_truth_filter": "restored-source isolated and full-suite rechecks for apparent misses",
+  "remaining_miss": "packages/tanstack-react-query/src/internals/Context.tsx#createTRPCContext missed packages/upgrade/test/transforms.test.ts",
+  "diagnosis": "The failing transforms test dynamically loads fixture modules with import.meta.glob and then executes a fixture that imports @trpc/tanstack-react-query. There is no ordinary static import path from transforms.test.ts to the mutated Context module; this is an explicit dynamic test-harness boundary, not a safe edge to invent.",
+  "interpretation": "The corrected harness improves the modern sample from 1/3 to 2/3 by removing two unrelated full-suite failures. The remaining miss documents a dynamic fixture-loader boundary and remains informational, not a release gate."
+}
