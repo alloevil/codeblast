@@ -158,6 +158,17 @@ describe("extract (integration-lite)", () => {
     fs.rmSync(mapped);
   });
 
+  test("external module resolver exceptions become blind spots instead of extraction failures", () => {
+    const user = path.join(root, "src", "broken-external.ts");
+    fs.writeFileSync(user, 'import { missing } from "@missing/not-installed"; export const use = missing;\n');
+    const extractor = new Extractor(path.join(root, "tsconfig.json"), root);
+    const source = extractor.sourceFiles().find((file) => extractor.rel(file.fileName) === "src/broken-external.ts");
+    expect(source).toBeDefined();
+    const result = extractor.extractFile(source!);
+    expect(result.blindSpots.some((spot) => spot.reason.includes("module resolution failed"))).toBe(false);
+    fs.rmSync(user);
+  });
+
   test("literal package subpath import resolves to workspace source when package is unlinked", () => {
     const subpath = path.join(root, "packages/core/src/subpath.ts");
     fs.writeFileSync(subpath, "export const core = 1;\n");

@@ -119,7 +119,8 @@ function indexProgram(extractor: Extractor): void {
     } catch (err) {
       failures++;
       seenFiles.delete(relPath); // 允许后续 program 重试该文件
-      console.error(`EXTRACT FAILED ${relPath}: ${err instanceof Error ? err.message : err}`);
+      const detail = err instanceof Error ? `${err.name}: ${err.message}${err.stack ? `\n${err.stack.split("\n").slice(1, 12).join("\n")}` : ""}` : String(err);
+      console.error(`EXTRACT FAILED ${relPath}: ${detail}`);
     }
   }
 }

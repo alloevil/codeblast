@@ -186,15 +186,24 @@ export class Extractor {
       if (ts.isImportDeclaration(stmt) || ts.isExportDeclaration(stmt)) {
         const spec = stmt.moduleSpecifier;
         if (spec && ts.isStringLiteral(spec)) {
-          const resolved = this.resolveModule(spec.text, sf.fileName);
+          let resolved: string | undefined;
+          try {
+            resolved = this.resolveModule(spec.text, sf.fileName);
+          } catch {
+            blindSpots.push({ file: relPath, line: lineOf(stmt), reason: `module resolution failed: ${spec.text}`, src_file: relPath });
+          }
           if (!resolved) {
             // 外部包回流：第三方包依赖了本仓自发布的 workspace 包（jest moduleNameMapper / 链接场景下执行仓内源码）。
             // graphql-tools 基准漏报 executor#execute：test → graphql-yoga(node_modules) → @graphql-tools/executor → packages/executor/src。
-            for (const entry of this.externalReentry(spec.text, sf.fileName)) {
-              edges.push({
-                src: relPath, dst: this.rel(entry), kind: "imports",
-                file: relPath, line: lineOf(stmt), confidence: "conservative", src_file: relPath,
-              });
+            try {
+              for (const entry of this.externalReentry(spec.text, sf.fileName)) {
+                edges.push({
+                  src: relPath, dst: this.rel(entry), kind: "imports",
+                  file: relPath, line: lineOf(stmt), confidence: "conservative", src_file: relPath,
+                });
+              }
+            } catch {
+              blindSpots.push({ file: relPath, line: lineOf(stmt), reason: `external reentry resolution failed: ${spec.text}`, src_file: relPath });
             }
           } else {
             edges.push({
