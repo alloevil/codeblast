@@ -239,6 +239,16 @@ if (pyProbe.exitCode === 0) {
   if (pyFiles > 0) console.error(`python files ingested: ${pyFiles}`);
 }
 
+// A complete scan defines the repository's current file set. Remove rows derived from files that were
+// deleted or moved since the previous incremental run. Never clean after extraction failures: that
+// would turn a partial scan into silent data loss.
+if (failures === 0) {
+  const stale = (db.prepare("SELECT path FROM files").all() as { path: string }[]).filter((row) => !seenFiles.has(row.path));
+  transaction(db, () => {
+    for (const row of stale) invalidateFile(db, row.path);
+  })();
+}
+
 const dt = ((performance.now() - t0) / 1000).toFixed(1);
 console.log(JSON.stringify({
   db: dbPath, seconds: Number(dt), tsconfigs: tsconfigs.length,

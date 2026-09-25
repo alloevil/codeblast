@@ -5,7 +5,7 @@ import { selfCommand, spawnSync } from "./proc";
 import { graphDiff, type GraphDiff } from "./graph-diff";
 import { impact } from "./impact";
 import { reviewDecision } from "./pr-decision";
-import { TEST_RE, bodySignalCount, coreNamedCount, structuralTotal, type BodyChange } from "./pr-silence";
+import { AUX_RE, TEST_RE, bodySignalCount, coreNamedCount, structuralTotal, type BodyChange } from "./pr-silence";
 
 const SCHEMA_VERSION = "1";
 const EXIT_OK = 0;
@@ -81,25 +81,36 @@ for (const node of [...diff.nodesAdded, ...diff.renamed.map((r) => ({ id: `${r.f
   } catch { /* module-level rename has no node to query */ }
 }
 const bodyChanged: BodyChange[] = [];
+const structuralIds = new Set([
+  ...diff.nodesAdded.map((node) => node.id),
+  ...diff.renamed.map((rename) => `${rename.file}#${rename.to}`),
+]);
 const diffText = spawnSync(["git", "diff", "--unified=0", baseSha, headSha, "--", "*.ts", "*.tsx"], { cwd: repo }).stdout;
 let currentFile = "";
 for (const line of diffText.split("\n")) {
   const file = line.match(/^\+\+\+ b\/(.+)$/);
   if (file) { currentFile = file[1]; continue; }
   const hunk = line.match(/^@@ -\d+(?:,\d+)? \+(\d+)/);
-  if (!hunk || !currentFile || TEST_RE.test(currentFile)) continue;
+  if (!hunk || !currentFile || TEST_RE.test(currentFile) || AUX_RE.test(currentFile)) continue;
   const row = dbB.prepare("SELECT id, name, kind, file, line FROM nodes WHERE file = ? AND kind IN ('function','method') AND line <= ? AND end_line >= ? ORDER BY (end_line - line) ASC LIMIT 1").get(currentFile, Number(hunk[1]), Number(hunk[1])) as BodyChange | null;
-  if (row && !bodyChanged.some((item) => item.id === row.id)) bodyChanged.push(row);
+  if (row && !structuralIds.has(row.id) && !bodyChanged.some((item) => item.id === row.id)) bodyChanged.push(row);
 }
 const diffLineCount = spawnSync(["git", "diff", "--numstat", baseSha, headSha], { cwd: repo }).stdout.split("\n").reduce((sum, line) => {
   const match = line.match(/^(\d+)\t(\d+)\t/);
   return sum + (match ? Number(match[1]) + Number(match[2]) : 0);
 }, 0);
+const changedFiles = spawnSync(["git", "diff", "--name-only", baseSha, headSha], { cwd: repo }).stdout.split("\n").filter(Boolean);
+const auxOnly = changedFiles.length > 0 && changedFiles.every((file) => AUX_RE.test(file));
 const decision = reviewDecision({ diff, prodNodesAdded, bodyChanged, affectedTests, truncated, blindSpotCount: blindSpots });
 if (healthWarnings.length > 0) {
   decision.risk = "high";
   decision.reasons.push(...healthWarnings);
   decision.recommendedActions.unshift("Rebuild or inspect the graph before relying on this decision.");
+} else if (auxOnly) {
+  decision.risk = "low";
+  decision.summary = "Low structural risk: only auxiliary-directory changes were found.";
+  decision.reasons = ["only auxiliary-directory changes were found"];
+  decision.recommendedActions = ["No code review signal; inspect the auxiliary change directly if needed."];
 }
 const output = {
   schema_version: SCHEMA_VERSION,
@@ -118,7 +129,7 @@ const output = {
   signals: {
     core_named: coreNamedCount(diff, prodNodesAdded),
     body: bodySignalCount(bodyChanged, diffLineCount, () => false),
-    aux_only: total > 0 && coreNamedCount(diff, prodNodesAdded) === 0 && bodyChanged.length === 0,
+    aux_only: auxOnly,
   },
   diff,
 };

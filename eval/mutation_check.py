@@ -18,6 +18,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from mutation_ground_truth import remove_clean_failures
 
 def _pop_runner(argv: list[str]) -> str:
     for i, a in enumerate(argv):
@@ -245,17 +246,26 @@ def main():
         # source is restored: still failing ⇒ flaky, not caused by the mutation.
         suspect = sorted(truth - predicted)
         if suspect:
-            recheck = run_tests_files(suspect)
-            if recheck is None:
-                print(f"    recheck unparsable for {suspect}; keeping them in ground truth")
-            elif recheck:
-                print(f"    flaky on clean source, dropped from ground truth: {sorted(recheck)}")
-                truth -= recheck
-                baseline |= recheck   # 同一个 flaky 不必在后续变异上再跑一遍
-                if not truth:
-                    results.append({"node": node_id, "note": "mutant not killed (only flaky tests failed)"})
-                    done += 1
-                    continue
+            isolated = run_tests_files(suspect)
+            if isolated is None:
+                print(f"    isolated recheck unparsable for {suspect}; keeping them pending full-suite recheck")
+                isolated = set()
+            remaining_suspect = set(suspect) - isolated
+            clean_full: set[str] = set()
+            if remaining_suspect:
+                full_result = run_full_vitest()
+                if full_result is None:
+                    print(f"    full-suite clean recheck unparsable for {sorted(remaining_suspect)}; keeping them in ground truth")
+                else:
+                    clean_full = full_result
+            truth, recheck = remove_clean_failures(truth, predicted, isolated, clean_full)
+            if recheck:
+                print(f"    failed again on clean source, dropped from ground truth: {sorted(recheck)}")
+                baseline |= recheck
+            if not truth:
+                results.append({"node": node_id, "note": "mutant not killed (only flaky tests failed)"})
+                done += 1
+                continue
         missed = truth - predicted
         missed_call = truth - predicted_call
         precision = len(truth) / len(predicted) if predicted else 0.0
