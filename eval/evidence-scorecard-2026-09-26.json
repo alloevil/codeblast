@@ -4,8 +4,8 @@
   "offline_replay": {"samples": 11, "passed": 11, "incorrect_silence": 0, "invalid_evidence": 0, "nondeterministic": 0},
   "incremental": {"nodes_equal": true, "edges_equal": true, "blind_spots_equal": true, "stale_removed": true, "rename_covered": true, "files_skipped": 30},
   "star_graphs": {"n8n_failures": 0, "excalidraw_failures": 0, "opencode_failures": 0},
-  "modern_tRPC": {"commit":"573d4f33ee2896c2bb7106203a936ae892d1ef1c","recall":"2/3 = 67%","call_channel_recall":"2/3 = 67%","status":"informational","remaining_boundary":"dynamic import.meta.glob fixture loader to transforms.test.ts"},
+  "modern_tRPC": {"commit":"573d4f33ee2896c2bb7106203a936ae892d1ef1c","recall":"3/3 = 100%","call_channel_recall":"1/3 = 33%","status":"informational","baseline_failures_excluded":47,"sample_mutants":3,"boundary":"bounded sample; not a release gate or universal recall claim"},
   "pinned_mutation": {"trpc":"28/28","graphql_tools":"10/10"},
   "local_regression": {"tests":80,"typecheck":"passed","claims_machine_checks":"8/8"},
-  "limits": ["No external maintainer usefulness rating", "No external star-project mutation recall without dependencies", "Modern tRPC sample is informational"]
+  "limits": ["No external maintainer usefulness rating", "No external star-project mutation recall without dependencies", "Modern tRPC result is a bounded informational sample"]
 }
