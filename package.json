@@ -39,6 +39,7 @@
     "prepack": "bun run build",
     "typecheck": "tsc -p .",
     "agent-smoke": "bun run build && node eval/agent-workflow-smoke.mjs",
+    "evolution-check": "PYTHONPATH=. node eval/evolution-check.mjs",
     "guidance-stability": "node eval/guidance-stability.mjs",
     "incremental-equivalence": "bun run build && node eval/incremental-equivalence.mjs",
     "offline-replay": "bun run build && node eval/offline-replay.mjs",
