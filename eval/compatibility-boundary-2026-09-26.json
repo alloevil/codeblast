@@ -1,0 +1,7 @@
+{
+  "sample": "trpc modern commit 573d4f3",
+  "result": "3/3 = 100% bounded recall",
+  "status": "informational",
+  "limits": ["3 mutants", "47 baseline failures excluded", "call-channel recall 1/3", "not a release gate"],
+  "boundary": "literal import.meta.glob fixture loading is now represented conservatively; arbitrary runtime loaders remain explicit blind spots"
+}

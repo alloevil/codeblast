@@ -25,5 +25,11 @@ jobs:
         run: CODEBLAST_REPLAY_OUT=/tmp/offline-replay.json bun run offline-replay
       - name: Publish scorecard
         if: always()
-        run: |
-          test -f /tmp/offline-replay.json && cat /tmp/offline-replay.json >> "$GITHUB_STEP_SUMMARY" || true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: offline-replay-scorecard-${{ github.run_id }}
+          path: /tmp/offline-replay.json
+          if-no-files-found: ignore
+      - name: Add scorecard to summary
+        if: always()
+        run: test -f /tmp/offline-replay.json && cat /tmp/offline-replay.json >> "$GITHUB_STEP_SUMMARY" || true
