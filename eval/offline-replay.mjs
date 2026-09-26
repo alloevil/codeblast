@@ -27,9 +27,10 @@ try {
       const repeated = run(["check-change", fixture.repo, fixture.base, fixture.head, "--json"], process.cwd());
       deterministic = repeated.stdout === safetyRun.stdout && repeated.status === safetyRun.status;
     }
+    const testGuidanceValid = Array.isArray(safety.affected_test_file_paths) && safety.affected_test_file_paths.length === safety.affected_test_files && new Set(safety.affected_test_file_paths).size === safety.affected_test_file_paths.length;
     const routingConsistent = safety.signals?.aux_only === true ? !emitted : (safety.decision !== "safe-to-review" ? emitted : (safety.structural_changes > 0 ? emitted : !emitted));
-    const passed = safety.decision === sample.oracle.decision && emitted === (sample.oracle.comment === "emit") && evidenceValid && warningValid && deterministic && routingConsistent;
-    results.push({ id: sample.id, expected_comment: sample.oracle.comment, decision: safety.decision, comment_emitted: emitted, evidence_valid: evidenceValid, warning_valid: warningValid, deterministic, routing_consistent: routingConsistent, passed });
+    const passed = safety.decision === sample.oracle.decision && emitted === (sample.oracle.comment === "emit") && evidenceValid && warningValid && deterministic && routingConsistent && testGuidanceValid;
+    results.push({ id: sample.id, expected_comment: sample.oracle.comment, decision: safety.decision, comment_emitted: emitted, evidence_valid: evidenceValid, warning_valid: warningValid, deterministic, routing_consistent: routingConsistent, test_guidance_valid: testGuidanceValid, passed });
   }
   const scorecard = {
     schema_version: "1",
@@ -38,6 +39,7 @@ try {
     failed: results.filter((x) => !x.passed).length,
     incorrect_silence: results.filter((x) => x.expected_comment === "emit" && !x.comment_emitted).length,
     invalid_evidence: results.filter((x) => !x.evidence_valid).length,
+    invalid_test_guidance: results.filter((x) => !x.test_guidance_valid).length,
     nondeterministic: results.filter((x) => !x.deterministic).length,
     results,
   };

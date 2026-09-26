@@ -69,17 +69,18 @@ const healthWarnings = [
 ];
 const prodNodesAdded = diff.nodesAdded.filter((n) => !TEST_RE.test(n.file));
 const total = structuralTotal(diff);
-let affectedTests = 0;
+const affectedTestFiles = new Set<string>();
 let truncated = false;
 let blindSpots = 0;
 for (const node of [...diff.nodesAdded, ...diff.renamed.map((r) => ({ id: `${r.file}#${r.to}`, kind: r.kind, name: r.to, file: r.file, line: 0 }))].slice(0, 15)) {
   try {
     const result = impact(dbB, node.id, 2000);
-    affectedTests += new Set(result.items.filter((item) => item.level === "tests").map((item) => item.file)).size;
+    for (const item of result.items) if (item.level === "tests") affectedTestFiles.add(item.file);
     truncated ||= result.truncated;
     blindSpots += result.blind_spot_count;
   } catch { /* module-level rename has no node to query */ }
 }
+const affectedTests = affectedTestFiles.size;
 const bodyChanged: BodyChange[] = [];
 const structuralIds = new Set([
   ...diff.nodesAdded.map((node) => node.id),
@@ -123,6 +124,7 @@ const output = {
   recommended_actions: decision.recommendedActions,
   structural_changes: total,
   affected_test_files: affectedTests,
+  affected_test_file_paths: [...affectedTestFiles].sort((a, b) => a.localeCompare(b)),
   blind_spot_count: blindSpots,
   graph_health: { base: healthBase, head: healthHead, warnings: healthWarnings },
   truncated,

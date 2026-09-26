@@ -1,0 +1,10 @@
+{
+  "repository": "trpc/trpc",
+  "commit": "573d4f33ee2896c2bb7106203a936ae892d1ef1c",
+  "runner": "vitest",
+  "mutants": [
+    "packages/server/src/unstable-core-do-not-import/stream/utils/disposable.ts#makeResource",
+    "packages/server/src/observable/operators.ts#distinctUntilChanged",
+    "packages/server/src/unstable-core-do-not-import/stream/sse.ts#sseStreamProducer"
+  ]
+}

@@ -347,9 +347,15 @@ export class Extractor {
         const caller = [...enclosing].reverse().find(Boolean) ?? relPath;
         if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === "glob" && node.expression.expression.getText(sf) === "import.meta") {
           const arg = node.arguments[0];
-          if (arg && ts.isStringLiteral(arg)) {
-            const matches = this.expandGlob(arg.text, sf.fileName);
-            for (const match of matches) edges.push({ src: relPath, dst: this.rel(match), kind: "imports", file: relPath, line: lineOf(node), confidence: "conservative", src_file: relPath });
+          const patterns = arg && ts.isStringLiteral(arg)
+            ? [arg.text]
+            : arg && ts.isArrayLiteralExpression(arg) && arg.elements.every(ts.isStringLiteral)
+            ? arg.elements.map((element) => (element as ts.StringLiteral).text)
+            : null;
+          if (patterns) {
+            const excluded = new Set(patterns.filter((pattern) => pattern.startsWith("!")).flatMap((pattern) => this.expandGlob(pattern.slice(1), sf.fileName)));
+            const matches = new Set(patterns.filter((pattern) => !pattern.startsWith("!")).flatMap((pattern) => this.expandGlob(pattern, sf.fileName)));
+            for (const match of matches) if (!excluded.has(match)) edges.push({ src: relPath, dst: this.rel(match), kind: "imports", file: relPath, line: lineOf(node), confidence: "conservative", src_file: relPath });
           } else {
             blindSpots.push({ file: relPath, line: lineOf(node), reason: `dynamic import.meta.glob: ${(arg?.getText() ?? "").slice(0, 80)}`, src_file: relPath });
           }

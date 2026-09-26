@@ -184,6 +184,23 @@ describe("extract (integration-lite)", () => {
     fs.rmSync(dir, { recursive: true, force: true });
   });
 
+  test("import.meta.glob arrays include positives and apply literal exclusions", () => {
+    const dir = path.join(root, "src", "glob-array");
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, "one.ts"), "export const one = 1;\n");
+    fs.writeFileSync(path.join(dir, "two.test.ts"), "export const two = 2;\n");
+    const user = path.join(root, "src", "glob-array-user.ts");
+    fs.writeFileSync(user, 'const modules = import.meta.glob(["./glob-array/*.ts", "!./glob-array/*.test.ts"]); export const count = modules;\n');
+    const extractor = new Extractor(path.join(root, "tsconfig.json"), root);
+    const source = extractor.sourceFiles().find((file) => extractor.rel(file.fileName) === "src/glob-array-user.ts");
+    expect(source).toBeDefined();
+    const imports = extractor.extractFile(source!).edges.filter((edge) => edge.kind === "imports").map((edge) => edge.dst);
+    expect(imports).toContain("src/glob-array/one.ts");
+    expect(imports).not.toContain("src/glob-array/two.test.ts");
+    fs.rmSync(user);
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
   test("literal package subpath import resolves to workspace source when package is unlinked", () => {
     const subpath = path.join(root, "packages/core/src/subpath.ts");
     fs.writeFileSync(subpath, "export const core = 1;\n");
