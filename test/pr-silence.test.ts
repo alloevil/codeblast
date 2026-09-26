@@ -66,7 +66,7 @@ describe("pr-silence", () => {
   test("offline replay manifest covers the deterministic safety matrix", () => {
     const manifest = JSON.parse(fs.readFileSync("eval/offline-replay-manifest.json", "utf8")) as { samples: { id: string }[] };
     expect(manifest.samples.map((sample) => sample.id).sort()).toEqual([
-      "aux-only", "blind-spot-target", "docs-only", "graph-node-drop", "public-api-removal",
+      "aux-only", "blind-spot-target", "docs-only", "graph-empty", "graph-node-drop", "public-api-removal",
       "pure-rename", "signature-widening", "test-only", "tested-behavior-change",
       "tested-behavior-repeat", "visibility-contraction",
     ]);
