@@ -31,7 +31,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
-      - uses: alloevil/codeblast@v0.3.4
+      - uses: alloevil/codeblast@v0.3.5
 ```
 
 On a structural PR, codeblast posts a bounded review decision, affected tests, `file:line` evidence,
@@ -73,7 +73,7 @@ Built for humans (CLI / interactive HTML / PR comments) and for AI agents ([SKIL
 ```bash
 npx codeblast demo            # build a graph of the current repo, run one impact query, emit the map
 npm i -g codeblast            # or install globally; needs Node ≥ 22.13 (built-in sqlite) or Bun
-                              # npm serves 0.3.4
+                              # npm serves 0.3.5
 
 # Install as an agent skill (Claude Code, Codex, Cursor, and 14 more harnesses)
 npx skills add alloevil/codeblast
@@ -96,7 +96,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
-      - uses: alloevil/codeblast@v0.3.4
+      - uses: alloevil/codeblast@v0.3.5
 ```
 
 The action builds the analyzer from the ref you pinned, posts one sticky comment when a PR contains a

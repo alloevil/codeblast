@@ -1,0 +1,4 @@
+[
+  {"node":"a.ts#one","truth":2,"missed":[],"recall_hit":true,"precision":0.4},
+  {"node":"b.ts#two","truth":1,"missed":[],"recall_hit":true,"precision":0.2}
+]

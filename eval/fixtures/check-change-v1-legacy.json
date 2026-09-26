@@ -1,0 +1,21 @@
+{
+  "schema_version": "1",
+  "engine_version": "0.3.4",
+  "range": "base..head",
+  "decision": "targeted-review",
+  "risk": "medium",
+  "summary": "Targeted review recommended.",
+  "reasons": ["1 function body changed"],
+  "recommended_actions": ["Review the changed function body."],
+  "structural_changes": 0,
+  "affected_test_files": 0,
+  "blind_spot_count": 0,
+  "graph_health": {
+    "base": {"files": 2, "nodes": 4, "edges": 3, "blind_spots": 0},
+    "head": {"files": 2, "nodes": 4, "edges": 3, "blind_spots": 0},
+    "warnings": []
+  },
+  "truncated": false,
+  "signals": {"core_named": 0, "body": 1, "aux_only": false},
+  "diff": {}
+}
