@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="#the-three-queries"><img src="https://img.shields.io/badge/TypeScript-function--level-3178c6?style=flat-square" alt="TypeScript function-level"/></a>
+  <a href="#the-four-views"><img src="https://img.shields.io/badge/TypeScript-function--level-3178c6?style=flat-square" alt="TypeScript function-level"/></a>
   <a href="#the-precision-promise-bounded-and-evidence-backed"><img src="https://img.shields.io/badge/recall-28%2F28_%3D_100%25-3fb950?style=flat-square" alt="mutation-tested recall 100%"/></a>
   <a href="SKILL.md"><img src="https://img.shields.io/badge/Agent-Skill-7c3aed?style=flat-square" alt="agent skill"/></a>
   <img src="https://img.shields.io/badge/license-MIT-8b949e?style=flat-square" alt="MIT"/>
@@ -31,7 +31,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
-      - uses: alloevil/codeblast@v0.3.3
+      - uses: alloevil/codeblast@v0.3.4
 ```
 
 On a structural PR, codeblast posts a bounded review decision, affected tests, `file:line` evidence,
@@ -40,14 +40,15 @@ locally in the runner; source is not uploaded to a codeblast service.
 
 ## What it is
 
-**codeblast parses your repository into a deterministic code graph and answers the three most expensive questions around any code change:**
+**codeblast parses your repository into a deterministic code graph and exposes four views of a change:**
 > 🔗 **[Live interactive demo](https://alloevil.github.io/codeblast/)** — real architecture maps of tRPC / Tabby / sgp, with three-level drill-down
 
 | | Question | Command |
 |---|---|---|
-| 🎯 | **What breaks if I change this?** | `impact` — direct / transitive / affected-tests, in three tiers |
-| 🔍 | **What did this PR structurally change?** | `change` — symbols and dependency edges added, removed, renamed |
-| 🗺️ | **What does this project look like?** | `archmap` — collapsible module map + circular-dependency detection |
+| 🎯 | **What breaks if I change this?** | `impact` — direct, transitive and affected-test reachability |
+| 🛡️ | **Should this change receive targeted review?** | `check-change` — risk, graph health, affected tests and warnings |
+| 🔍 | **What structurally changed?** | `change` — symbols and dependency edges added, removed or renamed |
+| 🗺️ | **What does this project look like?** | `archmap` — module/file/symbol drill-down and cycle detection |
 
 Built for humans (CLI / interactive HTML / PR comments) and for AI agents ([SKILL.md](SKILL.md)) — one graph, two front-ends.
 <table>
@@ -72,7 +73,7 @@ Built for humans (CLI / interactive HTML / PR comments) and for AI agents ([SKIL
 ```bash
 npx codeblast demo            # build a graph of the current repo, run one impact query, emit the map
 npm i -g codeblast            # or install globally; needs Node ≥ 22.13 (built-in sqlite) or Bun
-                              # npm serves 0.3.3
+                              # npm serves 0.3.4
 
 # Install as an agent skill (Claude Code, Codex, Cursor, and 14 more harnesses)
 npx skills add alloevil/codeblast
@@ -95,12 +96,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
-      - uses: alloevil/codeblast@v0.3.3
+      - uses: alloevil/codeblast@v0.3.4
 ```
 
-The action builds the analyzer from the ref you pinned, posts one sticky comment per PR, and stays
-silent when the diff has no structural change. For the full input/output contract, use the
-[workflow template](.github/workflows-template/codeblast.yml).
+The action builds the analyzer from the ref you pinned, posts one sticky comment when a PR contains a
+meaningful structural or tested behavior signal, and stays silent for docs-only, test-only, or
+auxiliary-only noise. For the full input/output contract, use the [workflow template](.github/workflows-template/codeblast.yml).
 
 
 ## Why not yet another LLM diagram tool
@@ -113,10 +114,10 @@ codeblast:     code → deterministic tsc/AST parse → graph → project  graph
 **Every node and every static-analysis edge carries `file:line` evidence** you can open and verify (`co_change` edges put a co-commit count in that field instead of a source line; file-level nodes carry line 1).
 The LLM does exactly one job in the pipeline: giving modules human-readable names — node membership and edges always come from static analysis.
 
-## The three queries
+## The four views
 
 <p align="center">
-  <img src="assets/readme/three-queries.svg" width="100%" alt="The three codeblast queries — impact: check the blast radius first; change: structural diff between two refs; archmap: module, file and symbol drill-down"/>
+  <img src="assets/readme/three-queries.svg" width="100%" alt="codeblast views — impact, change and architecture; check-change adds the machine-readable pre-merge safety decision"/>
 </p>
 
 ```bash
@@ -130,11 +131,15 @@ codeblast impact graph.db "createOrder" --json
 #    → two channels: call-graph reachable (precision ~0.70, read first)
 #      + import reachable (conservative supplement, don't skip)
 
-# ② Change Map — structural diff between two refs
+# ② Safety — one machine-readable pre-merge decision
+codeblast check-change <repo> <base> <head> --json
+#    → decision / risk / graph_health / affected_test_files / warnings
+
+# ③ Change Map — structural diff between two refs
 codeblast change <repo> main~5 main --json
 #    → unexpected edges_added = a signal the change is out of scope
 
-# ③ Architecture Map — interactive HTML: module → file → symbol drill-down,
+# ④ Architecture Map — interactive HTML: module → file → symbol drill-down,
 #    symbols link to source lines
 codeblast archmap graph.db --out arch.html --repo-url <github-url> \
   --site-url https://example.github.io/repo --og-image <share-image-url>
@@ -159,12 +164,11 @@ The self-pilot record is [`eval/pilot-2026-09-24.json`](eval/pilot-2026-09-24.js
 package indexed this repository with 0 extraction failures and returned separate review-first and test
 guidance. It is evidence that the workflow runs, not a claim of universal accuracy.
 
-Copy [`.github/workflows-template/codeblast.yml`](.github/workflows-template/codeblast.yml) into your repo (it runs `npx codeblast pr-comment`, no other setup):
-every PR gets an automatic comment with structural changes + blast radius + new symbols with no test coverage; **PRs with no structural change get zero comments**.
-Replayed against 50 real commits: 42 correctly stayed silent. Comment usefulness is the honest weak spot —
-four review rounds — rounds 1–3 independent blind review, round 4 by the current model — scored 25% / 75% / 57% / 20% useful, against 7/8 = 87.5% when the
-authoring agent rated its own comments; both numbers and the fixes that followed each round are logged in
-[intent.md](intent.md).
+Copy [`.github/workflows-template/codeblast.yml`](.github/workflows-template/codeblast.yml) into your repo.
+PR comments contain structural changes, tested behavior signals, affected tests and evidence links;
+docs-only, test-only and auxiliary-only changes stay silent. The deterministic offline replay matrix
+guards these routing rules. Earlier historical replays and their human-review limitations remain logged
+in [intent.md](intent.md).
 ## Evidence you can rerun
 
 The headline promise is bounded: TypeScript, within the statically analyzable scope, and measured by
@@ -179,6 +183,28 @@ and every published figure has a machine-readable receipt in [`docs/claims.json`
 
 The pilot is not a benchmark and does not establish a universal accuracy rate. It is a reproducible
 smoke run of the published package against this repository.
+
+### Current automated evidence
+
+The current main branch is guarded by one command:
+
+```bash
+bun run evolution-check
+```
+
+It runs build, tests, typecheck, deterministic replay, full/incremental graph equivalence and the
+published-claims gate. Current committed evidence:
+
+| Evidence | Current result |
+|---|---:|
+| Offline safety replay | 12/12, 0 incorrect silence, 0 invalid evidence, 0 nondeterministic output |
+| Full vs incremental graph | nodes, edges and blind spots equal; deleted/renamed rows removed |
+| Star-project graph completeness | n8n, Excalidraw and OpenCode: 0 extraction failures on pinned commits |
+| Pinned mutation recall | tRPC 28/28; graphql-tools 10/10 |
+| Modern compatibility radar | tRPC bounded sample 3/3; informational, not a release gate |
+
+Literal `import.meta.glob("./fixtures/**/*.tsx")` patterns are represented as conservative imports.
+Non-literal loaders, subprocess boundaries and unresolved runtime dispatch remain explicit blind spots.
 
 ### A reviewer's decision, not a diagram
 

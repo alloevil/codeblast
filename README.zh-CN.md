@@ -1,4 +1,4 @@
-**codeblast** 是一个确定性代码图谱 CLI，面向 TypeScript / Python 仓库，让开发者和 AI agent 在合并之前就知道改动会炸到哪里。
+**codeblast** 是面向 TypeScript monorepo 和 AI coding agent 的合并前变更安全检查器：告诉你该看哪里、该跑哪些测试，以及图谱是否完整。
 
 <p align="center">
   <img src="assets/readme/hero.svg" width="100%" alt="codeblast — deterministic code graph: know what breaks before you merge"/>
@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="#三个查询"><img src="https://img.shields.io/badge/TypeScript-函数级-3178c6?style=flat-square" alt="TypeScript function-level"/></a>
+  <a href="#四个视图"><img src="https://img.shields.io/badge/TypeScript-函数级-3178c6?style=flat-square" alt="TypeScript function-level"/></a>
   <a href="#精度承诺有边界有证据"><img src="https://img.shields.io/badge/recall-28%2F28_%3D_100%25-3fb950?style=flat-square" alt="mutation-tested recall 100%"/></a>
   <a href="SKILL.md"><img src="https://img.shields.io/badge/Agent-Skill-7c3aed?style=flat-square" alt="agent skill"/></a>
   <img src="https://img.shields.io/badge/license-MIT-8b949e?style=flat-square" alt="MIT"/>
@@ -17,14 +17,15 @@
 
 ## 是什么
 
-**codeblast 把仓库解析成一份确定性代码图谱，回答改代码前后最贵的三个问题：**
-> 🔗 **[在线交互演示](https://alloevil.github.io/codeblast/)** — tRPC / Tabby / sgp 的实时架构图,点开即可三层下钻
+**codeblast 把仓库解析成确定性代码图谱，为一次改动提供四个视图：**
+> 🔗 **[在线交互演示](https://alloevil.github.io/codeblast/)** — tRPC / Tabby / sgp 的真实架构图，可下钻到源码行
 
 | | 问题 | 命令 |
 |---|---|---|
-| 🎯 | **改这个会炸哪里？** | `impact` — 直接/传递/受影响测试三级清单 |
-| 🔍 | **这个 PR 在结构上改了什么？** | `change` — 符号与依赖边的增删/重命名 |
-| 🗺️ | **这个项目长什么样？** | `archmap` — 模块折叠图 + 循环依赖检测 |
+| 🎯 | **改这个会影响哪里？** | `impact` — 直接、传递与受影响测试 |
+| 🛡️ | **这个改动是否需要重点评审？** | `check-change` — 风险、图健康度、测试与警告 |
+| 🔍 | **结构上改了什么？** | `change` — 符号和依赖边的新增、删除与重命名 |
+| 🗺️ | **项目长什么样？** | `archmap` — 模块/文件/符号下钻与循环依赖 |
 
 给人看（CLI / 交互 HTML / PR 评论），也给 AI agent 用（[SKILL.md](SKILL.md)）——同一份图谱，两个出口。
 
@@ -33,7 +34,7 @@
 ```bash
 npx codeblast demo            # 给当前仓库建图、跑一次 impact 查询、导出架构图
 npm i -g codeblast            # 或全局安装；需要 Node ≥ 22.13（内置 sqlite）或 Bun
-                              # npm 上的版本是 0.3.3，与本仓库一致
+                              # npm 当前版本为 0.3.4
 
 # 作为 agent skill 安装（Claude Code、Codex、Cursor 等）
 npx skills add alloevil/codeblast
@@ -49,7 +50,7 @@ codeblast:   代码 → tsc/AST 确定性解析 → 图谱 → 投影    图 = �
 **每个节点和每条静态分析边都带 `file:line` 证据**，可直接打开核对（`co_change` 边在该字段存的是共提交次数而非源码行；文件级节点行号为 1）。
 LLM 在管线里只做一件事：给模块起人话名字——节点归属和边永远来自静态分析。
 
-## 三个查询
+## 四个视图
 
 ```bash
 # 建图：TS monorepo / Python 自动识别，hash 增量更新（tRPC 957 文件：6248 节点 / 17072 边，样例运行见 SKILL.md）
@@ -60,23 +61,45 @@ codeblast impact graph.db "createOrder" --json
 #    → direct 清单 = 必须检查的 callsite；tests 清单 = 必须跑的测试
 #    → 双通道：调用链可达（精确率 ~0.70,优先看）+ import 可达（保守补充,勿跳过）
 
-# ② Change Map —— 两个 ref 之间的结构 diff
+# ② Safety —— 合并前机器判断
+codeblast check-change <repo> <base> <head> --json
+#    → decision / risk / graph_health / affected_test_files / warnings
+
+# ③ Change Map —— 两个 ref 之间的结构 diff
 codeblast change <repo> main~5 main --json
 #    → 意料之外的 edges_added = 改动越界信号
 
-# ③ Architecture Map —— 交互 HTML：模块→文件→符号三层下钻，符号跳源码行
+# ④ Architecture Map —— 交互 HTML：模块→文件→符号三层下钻，符号跳源码行
 codeblast archmap graph.db --out arch.html --repo-url <github-url>
 
 # 可选：git 历史耦合挖掘（协议两端、配置与消费者——静态分析看不见的边）
 codeblast cochange <repo> graph.db
 ```
 
-### PR bot（CI 内跑，宁静默不刷屏）
+### PR bot（CI 内运行，宁静默不刷屏）
 
-复制 [`.github/workflows-template/codeblast.yml`](.github/workflows-template/codeblast.yml) 到目标仓库：
-每个 PR 自动评论结构变化 + 影响半径 + 无测试覆盖的新增符号；**无结构变化的 PR 零评论**。
-50 个真实提交回放：42 个正确静默。评论有效率是诚实的弱项——四轮评审（1–3 轮为独立盲评，第 4 轮由现模型担任评审人）为 25% / 75% / 57% / 20%，
-而作者 agent 自评同一批 8 条评论为 7/8 = 87.5%；两个数字与每轮之后的修复都记在 [intent.md](intent.md)。
+复制 [`.github/workflows-template/codeblast.yml`](.github/workflows-template/codeblast.yml) 到目标仓库。
+有意义的结构变化或“生产函数体 + 同 PR 测试”变化会得到 review decision、测试建议和 `file:line` 证据；
+docs-only、test-only、auxiliary-only 噪音默认静默。离线 replay 会自动防止错误静默和无效证据回归。
+
+## 当前自动证据
+
+```bash
+bun run evolution-check
+```
+
+统一运行 build、测试、类型检查、离线 replay、full/incremental 图等价和 claims gate。当前结果：
+
+| 证据 | 结果 |
+|---|---:|
+| 离线安全 replay | 12/12；错误静默、无效证据、非确定输出均为 0 |
+| 全量与增量图 | nodes / edges / blind spots 相等；删除与重命名后的旧记录已清理 |
+| 明星项目图完整性 | n8n、Excalidraw、OpenCode 固定 commit 均为 0 extraction failure |
+| 固定 mutation gate | tRPC 28/28；graphql-tools 10/10 |
+| modern 兼容性雷达 | tRPC 小样本 3/3；仅 informational，不是 release gate |
+
+字面量 `import.meta.glob("./fixtures/**/*.tsx")` 会展开成保守 import 边；非字面量 loader、
+子进程边界和无法解析的运行时派发仍作为显式 blind spot。
 
 ## 精度承诺（有边界，有证据）
 
@@ -107,13 +130,13 @@ codeblast cochange <repo> graph.db
 
 ## 给 AI Agent 用
 
-```
-改前:  impact "symbol" --json   → callsite 清单进上下文，防漏改
-改后:  change HEAD~1 HEAD --json → 自查结构越界与意外删除
+```text
+改前：impact "symbol" --json → review_first / run_tests / conservative / warnings
+改后：check-change repo base head --json → decision / risk / graph_health / affected tests
 ```
 
-完整契约与解读纪律（含"禁止假装盲区清单完整"）见 [SKILL.md](SKILL.md)。
-Agent 规范另见 [AGENTS.md](AGENTS.md)。
+`safe-to-review` 只是注意力路由，不等于“可以安全合并”。完整契约、schema version、exit code
+和解读纪律见 [SKILL.md](SKILL.md)；Agent 规范另见 [AGENTS.md](AGENTS.md)。
 
 ## 常见问题
 
