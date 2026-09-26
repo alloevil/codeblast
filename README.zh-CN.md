@@ -34,7 +34,7 @@
 ```bash
 npx codeblast demo            # 给当前仓库建图、跑一次 impact 查询、导出架构图
 npm i -g codeblast            # 或全局安装；需要 Node ≥ 22.13（内置 sqlite）或 Bun
-                              # npm 当前版本为 0.3.4
+                              # npm 当前版本为 0.3.5
 
 # 作为 agent skill 安装（Claude Code、Codex、Cursor 等）
 npx skills add alloevil/codeblast

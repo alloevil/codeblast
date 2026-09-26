@@ -46,6 +46,7 @@ try {
   const staleRemoved = !rows(incrementalDb, "nodes", "id").some((row) => String(row.id).startsWith("src/b.ts"));
   const passed = Object.values(equality).every(Boolean) && staleRemoved && incremental.output.files_skipped >= 30;
   const score = { passed, initial_ms: initial.ms, incremental_ms: incremental.ms, fresh_ms: fresh.ms, speedup: Number((fresh.ms / incremental.ms).toFixed(2)), equality, stale_removed: staleRemoved, indexed: incremental.output.files_indexed, skipped: incremental.output.files_skipped };
+  if (process.env.CODEBLAST_INCREMENTAL_OUT) fs.writeFileSync(process.env.CODEBLAST_INCREMENTAL_OUT, JSON.stringify(score, null, 2) + "\n");
   console.log(JSON.stringify(score));
   if (!passed) process.exitCode = 1;
 } finally {

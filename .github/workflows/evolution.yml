@@ -1,0 +1,47 @@
+name: evolution
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: codeblast
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: alloevil/verify-claims
+          ref: v0.1.1
+          path: verify-claims
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+      - run: bun install --frozen-lockfile
+        working-directory: codeblast
+      - name: Run unified evolution gate
+        working-directory: codeblast
+        env:
+          VERIFY_CLAIMS_ROOT: ${{ github.workspace }}/verify-claims
+          CODEBLAST_EVOLUTION_OUT: /tmp/evolution-check.json
+        run: bun run evolution-check
+      - name: Upload evolution scorecard
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: evolution-scorecard-${{ github.run_id }}
+          path: /tmp/evolution-check.json
+          if-no-files-found: ignore
+      - name: Add scorecard to summary
+        if: always()
+        run: test -f /tmp/evolution-check.json && cat /tmp/evolution-check.json >> "$GITHUB_STEP_SUMMARY" || true
