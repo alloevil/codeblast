@@ -22,9 +22,13 @@ const rows = (dbPath, table, columns) => {
 };
 try {
   fs.mkdirSync(path.join(root, "src"));
-  fs.writeFileSync(path.join(root, "tsconfig.json"), JSON.stringify({ compilerOptions: { target: "ES2022", module: "ESNext", moduleResolution: "Bundler", strict: true }, include: ["src"] }));
+  fs.mkdirSync(path.join(root, "packages", "core", "src"), { recursive: true });
+  fs.writeFileSync(path.join(root, "package.json"), JSON.stringify({ name: "fixture", workspaces: ["packages/*"] }));
+  fs.writeFileSync(path.join(root, "packages/core/package.json"), JSON.stringify({ name: "@fixture/core" }));
+  fs.writeFileSync(path.join(root, "packages/core/src/index.ts"), "export const core = 1;\n");
+  fs.writeFileSync(path.join(root, "tsconfig.json"), JSON.stringify({ compilerOptions: { target: "ES2022", module: "ESNext", moduleResolution: "Bundler", strict: true }, include: ["src", "packages"] }));
   for (let i = 0; i < 30; i++) fs.writeFileSync(path.join(root, "src", `unchanged-${i}.ts`), `export const unchanged${i} = ${i};\n`);
-  fs.writeFileSync(path.join(root, "src/a.ts"), "export function a() { return 1; }\n");
+  fs.writeFileSync(path.join(root, "src/a.ts"), "import { core } from '@fixture/core'; export function a() { return core; }\n");
   fs.writeFileSync(path.join(root, "src/b.ts"), 'import { a } from "./a"; export function b() { return a(); }\n');
   const initial = runIndex(incrementalDb);
   fs.writeFileSync(path.join(root, "src/a.ts"), "export function a() { return 2; }\nexport function added() { return 3; }\n");
