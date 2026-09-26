@@ -1,0 +1,11 @@
+{
+  "as_of": "2026-09-27",
+  "release": {"npm_version": "0.3.4", "contract_surface": "passed"},
+  "evolution_check": {"passed": true, "build": true, "tests": true, "typecheck": true, "offline_replay": true, "incremental_equivalence": true, "claims": true},
+  "safety_contract": {"affected_test_paths_unique_sorted": true, "affected_test_count_matches_paths": true},
+  "mutation_sampling": {"modern_manifest": "eval/mutants/trpc-modern-573d4f3.json", "fixed_mutants": 3, "selection": "deterministic"},
+  "dynamic_loaders": {"literal_glob": true, "literal_glob_arrays": true, "negative_patterns": true, "non_literal": "blind-spot"},
+  "offline_replay": {"samples": 12, "passed": 12, "incorrect_silence": 0, "invalid_evidence": 0, "nondeterministic": 0},
+  "incremental": {"nodes_equal": true, "edges_equal": true, "blind_spots_equal": true, "stale_removed": true, "workspace_boundary": true},
+  "limits": ["Fixed mutant manifest support is implemented; the full external benchmark remains separate from the offline gate", "Modern bounded sample remains informational"]
+}

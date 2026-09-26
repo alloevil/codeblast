@@ -4,7 +4,7 @@
   "title": "codeblast check-change JSON",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "engine_version", "range", "decision", "risk", "reasons", "recommended_actions", "structural_changes", "affected_test_files", "blind_spot_count", "graph_health", "truncated", "signals", "diff"],
+  "required": ["schema_version", "engine_version", "range", "decision", "risk", "reasons", "recommended_actions", "structural_changes", "affected_test_files", "affected_test_file_paths", "blind_spot_count", "graph_health", "truncated", "signals", "diff"],
   "properties": {
     "schema_version": {"const": "1"},
     "engine_version": {"type": "string"},
@@ -16,6 +16,7 @@
     "recommended_actions": {"type": "array", "items": {"type": "string"}},
     "structural_changes": {"type": "integer", "minimum": 0},
     "affected_test_files": {"type": "integer", "minimum": 0},
+    "affected_test_file_paths": {"type": "array", "items": {"type": "string"}},
     "blind_spot_count": {"type": "integer", "minimum": 0},
     "truncated": {"type": "boolean"},
     "graph_health": {

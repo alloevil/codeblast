@@ -9,7 +9,7 @@ M1 验收 — 变异测试对照（方法照 arXiv:1812.06286）。
 
 召回率硬门槛 100%；精确率报实数。
 
-用法: python3 eval/mutation_check.py [REPO] [DB] [N_MUTANTS] [--runner auto|vitest|jest]
+用法: python3 eval/mutation_check.py [REPO] [DB] [N_MUTANTS] [--runner auto|vitest|jest] [--manifest path.json]
 """
 import json
 import os
@@ -30,15 +30,27 @@ def _pop_runner(argv: list[str]) -> str:
             return a.split("=", 1)[1]
     return "auto"
 
+def _pop_manifest(argv: list[str]) -> Path | None:
+    for i, a in enumerate(argv):
+        if a == "--manifest" and i + 1 < len(argv):
+            del argv[i]
+            return Path(argv.pop(i))
+        if a.startswith("--manifest="):
+            del argv[i]
+            return Path(a.split("=", 1)[1])
+    return None
+
 ARGV = sys.argv[1:]
 RUNNER_ARG = _pop_runner(ARGV)
+MANIFEST_PATH = _pop_manifest(ARGV)
 if RUNNER_ARG not in ("auto", "vitest", "jest"):
     raise SystemExit(f"--runner must be auto|vitest|jest, got {RUNNER_ARG!r}")
 
 REPO = Path(ARGV[0]) if len(ARGV) > 0 else Path("/tmp/trpc")
 DB = ARGV[1] if len(ARGV) > 1 else "/tmp/trpc-full.db"
 ATLAS = Path(__file__).resolve().parent.parent
-N_MUTANTS = int(ARGV[2]) if len(ARGV) > 2 else 10
+MANIFEST_NODES = json.loads(MANIFEST_PATH.read_text()).get("mutants", []) if MANIFEST_PATH else []
+N_MUTANTS = len(MANIFEST_NODES) if MANIFEST_NODES else (int(ARGV[2]) if len(ARGV) > 2 else 10)
 
 def detect_runner() -> str:
     """从目标仓根 package.json 识别测试框架；无 jest 迹象时默认 vitest（保持原行为）。"""
@@ -210,6 +222,13 @@ def main():
           AND n.file NOT LIKE '%test%' AND n.file NOT LIKE '%__tests__%'
         ORDER BY RANDOM()
     """).fetchall()
+    if MANIFEST_NODES:
+        by_id = {row[0]: row for row in candidates}
+        missing = [node for node in MANIFEST_NODES if node not in by_id]
+        if missing:
+            raise SystemExit(f"manifest nodes absent from mutation candidates: {missing}")
+        candidates = [by_id[node] for node in MANIFEST_NODES]
+        print(f"manifest: {MANIFEST_PATH} ({len(candidates)} fixed mutants)")
     print(f"total candidates: {len(candidates)}, running {N_MUTANTS} mutants")
     print(f"runner: {RUNNER}")
 

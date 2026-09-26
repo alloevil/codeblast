@@ -18,5 +18,7 @@ for (const side of [d.graph_health.base, d.graph_health.head]) {
   for (const key of ["files", "nodes", "edges", "blind_spots"]) if (!Number.isInteger(side[key]) || side[key] < 0) fail(`invalid graph_health.${key}`);
 }
 if (!Number.isInteger(d.affected_test_files) || d.affected_test_files < 0) fail("invalid affected_test_files");
+if (!Array.isArray(d.affected_test_file_paths) || d.affected_test_file_paths.length !== d.affected_test_files) fail("invalid affected_test_file_paths");
+if (new Set(d.affected_test_file_paths).size !== d.affected_test_file_paths.length || JSON.stringify(d.affected_test_file_paths) !== JSON.stringify([...d.affected_test_file_paths].sort())) fail("affected test paths must be unique and sorted");
 if (!Number.isInteger(d.blind_spot_count) || d.blind_spot_count < 0) fail("invalid blind_spot_count");
 console.log("safety result valid");
