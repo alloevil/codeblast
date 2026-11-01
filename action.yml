@@ -40,7 +40,7 @@ runs:
     # The tool is built from the action's own ref (`${{ github.action_path }}`), not from
     # npm: the published package can lag this repository, and an action that silently runs
     # an older analyzer than the version you pinned would be its own kind of wrong number.
-    - uses: actions/setup-node@v4
+    - uses: actions/setup-node@v7
       with:
         node-version: "22"
     - uses: oven-sh/setup-bun@v2
@@ -81,7 +81,7 @@ runs:
 
     - name: Comment on the pull request
       if: ${{ inputs.comment == 'true' && steps.analyze.outputs.has_comment == 'true' }}
-      uses: marocchino/sticky-pull-request-comment@v2
+      uses: marocchino/sticky-pull-request-comment@v3
       with:
         header: codeblast
         path: ${{ steps.analyze.outputs.comment_path }}
