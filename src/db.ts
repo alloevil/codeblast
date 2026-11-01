@@ -39,7 +39,8 @@ export function openDatabase(file: string, opts: { readonly?: boolean } = {}): D
   if (isBun) {
     // require 结果无类型；两运行时的 Database 类在本模块使用的面上结构一致，按构造器使用。
     const mod: { Database: DatabaseCtor } = require("bun:sqlite");
-    return new mod.Database(file, { readonly: !!opts.readonly, create: true });
+    // bun ≥1.4.4 拒绝 readonly 与 create 同时为真（抛 TypeError）；只读打开不建库，与 node:sqlite 的 readOnly 语义一致。
+    return new mod.Database(file, opts.readonly ? { readonly: true } : { create: true });
   }
   const mod: { DatabaseSync: DatabaseCtor } = require("node:sqlite");
   return new mod.DatabaseSync(file, { readOnly: !!opts.readonly });
